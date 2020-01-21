@@ -43,6 +43,8 @@ int main(int argc, char**argv) {
 	rv = listen(sockfd, 5);
 	if (rv<0) err(1,0);
 	
+	fprintf(stderr, "server set up\n");
+
 	// main server loop, handle clients one at a time, quit after 10 clients
 	for( i=0; i<10; i++ ) {
 		
