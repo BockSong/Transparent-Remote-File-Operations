@@ -1,23 +1,19 @@
-PROGS=client server
+ROGS=client server
 CFLAGS+=-Wall
-
--I../include
--L../lib
-
-all: $(PROGS)
-
-clean:
-	rm -f *.o $(PROGS)
-
 
 all: mylib.so
 
 mylib.o: mylib.c
-	gcc -Wall -fPIC -DPIC -c mylib.c
+	gcc -Wall -fPIC -DPIC -c mylib.c -I../include
 
 mylib.so: mylib.o
-	ld -shared -o mylib.so mylib.o -ldl
+	ld -shared -o mylib.so mylib.o -ldl -L../lib
+
+all: server $(PROGS)
+
+server: server.c
+	gcc -Wall -o server server.c
 
 clean:
-	rm -f *.o *.so
+	rm -f *.o *.so $(PROGS)
 
