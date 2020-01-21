@@ -2,6 +2,7 @@
 
 #include <dlfcn.h>
 #include <stdio.h>
+#include <stdlib.h>
  
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -9,7 +10,15 @@
 #include <unistd.h>
 #include <stdarg.h>
 
-// The following line declares a function pointer with the same prototype as the open function.  
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <err.h>
+
+#define MAXMSGLEN 100
+
+// The following line declares function pointers with the same prototype as the original functions.  
 int (*orig_open)(const char *pathname, int flags, ...);  // mode_t mode is needed when flags includes O_CREAT
 int (*orig_close)(int fildes);
 ssize_t (*orig_read)(int fildes, void *buf, size_t nbyte);
@@ -21,6 +30,60 @@ int (*orig_getdirentries)(int fd, char *buf, int nbytes, long *basep);
 struct dirtreenode* (*orig_getdirtree)(const char *pathname);
 void (*orig_freedirtree)(struct dirtreenode* dt);
 
+int connect2server(char *msg) {
+	//char *msg="Hello from client";
+	char *serverip;
+	char *serverport;
+	unsigned short port;
+	char buf[MAXMSGLEN+1];
+	int sockfd, rv;
+	struct sockaddr_in srv;
+	
+	// Get environment variable indicating the ip address of the server
+	serverip = getenv("server15440");
+	if (serverip) printf("Got environment variable server15440: %s\n", serverip);
+	else {
+		printf("Environment variable server15440 not found.  Using 127.0.0.1\n");
+		serverip = "127.0.0.1";
+	}
+	
+	// Get environment variable indicating the port of the server
+	serverport = getenv("serverport15440");
+	if (serverport) fprintf(stderr, "Got environment variable serverport15440: %s\n", serverport);
+	else {
+		fprintf(stderr, "Environment variable serverport15440 not found.  Using 15440\n");
+		serverport = "15440";
+	}
+	port = (unsigned short)atoi(serverport);
+	
+	// Create socket
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
+	if (sockfd<0) err(1, 0);			// in case of error
+	
+	// setup address structure to point to server
+	memset(&srv, 0, sizeof(srv));			// clear it first
+	srv.sin_family = AF_INET;			// IP family
+	srv.sin_addr.s_addr = inet_addr(serverip);	// IP address of server
+	srv.sin_port = htons(port);			// server port
+
+	// actually connect to the server
+	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
+	if (rv<0) err(1,0);
+	
+	// send message to server
+	printf("client sending to server: %s\n", msg);
+	send(sockfd, msg, strlen(msg), 0);	// send message; should check return value
+	
+	// get message back
+	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// get message
+	if (rv<0) err(1,0);			// in case something went wrong
+	buf[rv]=0;				// null terminate string to print
+	printf("client got messge: %s\n", buf);
+	
+	// close socket
+	orig_close(sockfd);
+}
+
 // This is our replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
 	mode_t m=0;
@@ -30,52 +93,63 @@ int open(const char *pathname, int flags, ...) {
 		m = va_arg(a, mode_t);
 		va_end(a);
 	}
+
+	connect2server("open");
 	// we just print a message, then call through to the original open function (from libc)
 	fprintf(stderr, "mylib: open called for path %s\n", pathname);
 	return orig_open(pathname, flags, m);
 }
 
 int close(int fildes) {
+	connect2server("close");
 	fprintf(stderr, "mylib: close called from %d\n", fildes);
 	return orig_close(fildes);
 }
 
 ssize_t read(int fildes, void *buf, size_t nbyte) {
+	connect2server("read");
 	fprintf(stderr, "mylib: read called from %d\n", fildes);
 	return orig_read(fildes, buf, nbyte);
 }
 
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
+	connect2server("write");
 	fprintf(stderr, "mylib: write called from %d\n", fildes);
 	return orig_write(fildes, buf, nbyte);
 }
 
 off_t lseek(int fildes, off_t offset, int whence) {
+	connect2server("lseek");
 	fprintf(stderr, "mylib: lseek called from %d\n", fildes);
 	return orig_lseek(fildes, offset, whence);
 }
 
 int stat(const char *pathname, struct stat *buf) {
+	connect2server("stat");
 	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
 	return orig_stat(pathname, buf);
 }
 
 int unlink(const char *pathname) {
+	connect2server("unlink");
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
 	return orig_unlink(pathname);
 }
 
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
+	connect2server("getdirentries");
 	fprintf(stderr, "mylib: getdirentries called from %d\n", fd);
 	return orig_getdirentries(fd, buf, nbytes, basep);
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
+	connect2server("getdirtree");
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 	return orig_getdirtree(pathname);
 }
 
 void freedirtree(struct dirtreenode* dt) {
+	connect2server("freedirtree");
 	fprintf(stderr, "mylib: freedirtree called\n");
 	return orig_freedirtree(dt);
 }
