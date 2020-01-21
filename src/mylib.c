@@ -30,7 +30,7 @@ int (*orig_getdirentries)(int fd, char *buf, int nbytes, long *basep);
 struct dirtreenode* (*orig_getdirtree)(const char *pathname);
 void (*orig_freedirtree)(struct dirtreenode* dt);
 
-int connect2server(char *msg) {
+void connect2server(char *msg) {
 	//char *msg="Hello from client";
 	char *serverip;
 	char *serverport;
@@ -41,9 +41,9 @@ int connect2server(char *msg) {
 	
 	// Get environment variable indicating the ip address of the server
 	serverip = getenv("server15440");
-	if (serverip) printf("Got environment variable server15440: %s\n", serverip);
+	if (serverip) fprintf(stderr, "Got environment variable server15440: %s\n", serverip);
 	else {
-		printf("Environment variable server15440 not found.  Using 127.0.0.1\n");
+		fprintf(stderr, "Environment variable server15440 not found.  Using 127.0.0.1\n");
 		serverip = "127.0.0.1";
 	}
 	
@@ -55,6 +55,7 @@ int connect2server(char *msg) {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
+	//port = 15332;
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -71,14 +72,14 @@ int connect2server(char *msg) {
 	if (rv<0) err(1,0);
 	
 	// send message to server
-	printf("client sending to server: %s\n", msg);
+	fprintf(stderr, "client sending to server: %s\n", msg);
 	send(sockfd, msg, strlen(msg), 0);	// send message; should check return value
 	
 	// get message back
 	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// get message
 	if (rv<0) err(1,0);			// in case something went wrong
 	buf[rv]=0;				// null terminate string to print
-	printf("client got messge: %s\n", buf);
+	fprintf(stderr, "client got messge: %s\n", buf);
 	
 	// close socket
 	orig_close(sockfd);

@@ -9,7 +9,6 @@
 #include <err.h>
 
 #define MAXMSGLEN 100
-#define DEBUG 1
 
 int main(int argc, char**argv) {
 	char *msg="Hello from server";
@@ -24,6 +23,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
+	//port = 15332;
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -54,11 +54,10 @@ int main(int argc, char**argv) {
 		// get messages and send replies to this client, until it goes away
 		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) {
 			buf[rv]=0;		// null terminate string to print
-			if (DEBUG)  printf("server got messge: ");
 			printf("%s\n", buf);
 			
 			// send reply
-			if (DEBUG)  printf("server replying to client: %s\n", msg);
+			fprintf(stderr, "server replying to client: %s\n", msg);
 			send(sessfd, msg, strlen(msg), 0);	// should check return value
 		}
 
@@ -67,7 +66,7 @@ int main(int argc, char**argv) {
 		close(sessfd);
 	}
 	
-	if (DEBUG)  printf("server shutting down cleanly\n");
+	fprintf(stderr, "server shutting down cleanly\n");
 	// close socket
 	close(sockfd);
 
