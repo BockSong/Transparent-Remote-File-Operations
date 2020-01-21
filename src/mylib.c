@@ -25,6 +25,7 @@ ssize_t (*orig_read)(int fildes, void *buf, size_t nbyte);
 ssize_t (*orig_write)(int fildes, const void *buf, size_t nbyte);
 off_t (*orig_lseek)(int fildes, off_t offset, int whence);
 int (*orig_stat)(const char *pathname, struct stat *buf);
+int (*orig___xstat)(int ver, const char * pathname, struct stat * stat_buf);
 int (*orig_unlink)(const char *pathname);
 int (*orig_getdirentries)(int fd, char *buf, int nbytes, long *basep);
 struct dirtreenode* (*orig_getdirtree)(const char *pathname);
@@ -131,6 +132,12 @@ int stat(const char *pathname, struct stat *buf) {
 	return orig_stat(pathname, buf);
 }
 
+int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
+	connect2server("stat");
+	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
+	return orig___xstat(ver, pathname, stat_buf);
+}
+
 int unlink(const char *pathname) {
 	connect2server("unlink");
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
@@ -164,6 +171,7 @@ void _init(void) {
 	orig_write = dlsym(RTLD_NEXT, "write");
 	orig_lseek = dlsym(RTLD_NEXT, "lseek");
 	orig_stat = dlsym(RTLD_NEXT, "stat");
+	orig___xstat = dlsym(RTLD_NEXT, "__xstat");
 	orig_unlink = dlsym(RTLD_NEXT, "unlink");
 	orig_getdirentries = dlsym(RTLD_NEXT, "getdirentries");
 	orig_getdirtree = dlsym(RTLD_NEXT, "getdirtree");
