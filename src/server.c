@@ -15,7 +15,7 @@ int main(int argc, char**argv) {
 	char buf[MAXMSGLEN+1];
 	char *serverport;
 	unsigned short port;
-	int sockfd, sessfd, rv, i;
+	int sockfd, sessfd, rv;
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
 	
@@ -45,8 +45,8 @@ int main(int argc, char**argv) {
 	
 	fprintf(stderr, "server set up\n");
 
-	// main server loop, handle clients one at a time, quit after 10 clients
-	for( i=0; i<10; i++ ) {
+	// main server loop, handle clients one at a time, unlimited times
+	while(1) {
 		
 		// wait for next client, get session socket
 		sa_size = sizeof(struct sockaddr_in);
