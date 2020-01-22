@@ -32,7 +32,6 @@ struct dirtreenode* (*orig_getdirtree)(const char *pathname);
 void (*orig_freedirtree)(struct dirtreenode* dt);
 
 void connect2server(char *msg) {
-	//char *msg="Hello from client";
 	char *serverip;
 	char *serverport;
 	unsigned short port;
@@ -178,5 +177,4 @@ void _init(void) {
 	orig_freedirtree = dlsym(RTLD_NEXT, "freedirtree");
 	fprintf(stderr, "Init mylib\n");
 }
-
 
