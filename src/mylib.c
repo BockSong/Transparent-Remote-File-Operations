@@ -55,7 +55,7 @@ void connect2server(char *msg) {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	//port = 15332;
+	port = 15332;
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
