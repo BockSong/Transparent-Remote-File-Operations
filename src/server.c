@@ -15,7 +15,7 @@ int main(int argc, char**argv) {
 	char buf[MAXMSGLEN+1];
 	char *serverport;
 	unsigned short port;
-	int sockfd, sessfd, rv;
+	int sockfd, sessfd, rv, send_rv;
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
 	
@@ -23,7 +23,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	port = 15332;
+	port = 15332; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -40,37 +40,38 @@ int main(int argc, char**argv) {
 	if (rv<0) err(1,0);
 	
 	// start listening for connections
-	rv = listen(sockfd, 5);
+	rv = listen(sockfd, 5);  // listening for clients, queue up to 5
 	if (rv<0) err(1,0);
 	
-	fprintf(stderr, "server set up\n");
+	fprintf(stderr, "start listening\n");
 
-	// main server loop, handle clients one at a time, unlimited times
+	// main server loop, linearly handle clients one at a time, with unlimited times
 	while(1) {
-		
 		// wait for next client, get session socket
 		sa_size = sizeof(struct sockaddr_in);
+		// accept() blocks until a client has connected
 		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
 		if (sessfd<0) err(1,0);
 		
 		// get messages and send replies to this client, until it goes away
-		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) {
+		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) { // receive up to MAXMSGLEN bytes into buf
 			buf[rv]=0;		// null terminate string to print
-			printf("%s\n", buf);
+			printf("%s\n", buf);  // print the received messege
 			
 			// send reply
 			fprintf(stderr, "server replying to client: %s\n", msg);
-			send(sessfd, msg, strlen(msg), 0);	// should check return value
+			send_rv = send(sessfd, msg, strlen(msg), 0);
+			if (send_rv<0) err(1,0);
 		}
 
-		// either client closed connection, or error
+		// if received bytes < 0, either client closed connection, or error
 		if (rv<0) err(1,0);
-		close(sessfd);
+		close(sessfd);  // done with this client
 	}
 	
 	fprintf(stderr, "server shutting down cleanly\n");
 	// close socket
-	close(sockfd);
+	close(sockfd);  // server is done
 
 	return 0;
 }

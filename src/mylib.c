@@ -3,7 +3,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
- 
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -36,8 +36,8 @@ void connect2server(char *msg) {
 	char *serverport;
 	unsigned short port;
 	char buf[MAXMSGLEN+1];
-	int sockfd, rv;
-	struct sockaddr_in srv;
+	int sockfd, rv, send_rv;
+	struct sockaddr_in srv;     // address structure
 	
 	// Get environment variable indicating the ip address of the server
 	serverip = getenv("server15440");
@@ -55,7 +55,7 @@ void connect2server(char *msg) {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15332;
+	port = 15332; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -73,16 +73,17 @@ void connect2server(char *msg) {
 	
 	// send message to server
 	fprintf(stderr, "client sending to server: %s\n", msg);
-	send(sockfd, msg, strlen(msg), 0);	// send message; should check return value
+	send_rv = send(sockfd, msg, strlen(msg), 0);	// send the whole msg
+	if (send_rv<0) err(1,0);
 	
 	// get message back
-	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// get message
+	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
 	if (rv<0) err(1,0);			// in case something went wrong
 	buf[rv]=0;				// null terminate string to print
 	fprintf(stderr, "client got messge: %s\n", buf);
 	
 	// close socket
-	orig_close(sockfd);
+	orig_close(sockfd);  // client is done
 }
 
 // This is our replacement for the open function from libc.
