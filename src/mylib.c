@@ -15,6 +15,8 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <err.h>
+#include <errno.h>
+#include <packet.h>
 
 #define MAXMSGLEN 100
 
@@ -31,12 +33,11 @@ int (*orig_getdirentries)(int fd, char *buf, int nbytes, long *basep);
 struct dirtreenode* (*orig_getdirtree)(const char *pathname);
 void (*orig_freedirtree)(struct dirtreenode* dt);
 
-void connect2server(char *msg) {
+int connect2server() {
 	char *serverip;
 	char *serverport;
 	unsigned short port;
-	char buf[MAXMSGLEN+1];
-	int sockfd, rv, send_rv;
+	int sockfd, rv;
 	struct sockaddr_in srv;     // address structure
 	
 	// Get environment variable indicating the ip address of the server
@@ -70,11 +71,18 @@ void connect2server(char *msg) {
 	// actually connect to the server
 	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
 	if (rv<0) err(1,0);
-	
+
+	return sockfd;
+}
+
+void contact2server(int sockfd, char *msg) {
+	char buf[MAXMSGLEN+1];
+	int rv;
+
 	// send message to server
 	fprintf(stderr, "client sending to server: %s\n", msg);
-	send_rv = send(sockfd, msg, strlen(msg), 0);	// send the whole msg
-	if (send_rv<0) err(1,0);
+	rv = send(sockfd, msg, strlen(msg), 0);	// send the whole msg
+	if (rv<0) err(1,0);
 	
 	// get message back
 	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
@@ -88,6 +96,7 @@ void connect2server(char *msg) {
 
 // This is our replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
+	int sockfd, rv, err_no;
 	mode_t m=0;
 	if (flags & O_CREAT) {
 		va_list a;
@@ -96,68 +105,104 @@ int open(const char *pathname, int flags, ...) {
 		va_end(a);
 	}
 
-	connect2server("open");
-	// we just print a message, then call through to the original open function (from libc)
+	sockfd = connect2server();
+	packaging();
+	send();
+	check();
+	unpackaging();
+
 	fprintf(stderr, "mylib: open called for path %s\n", pathname);
-	return orig_open(pathname, flags, m);
+	errno = err_no;
+	return rv;
 }
 
 int close(int fildes) {
-	connect2server("close");
+	int sockfd, rv, err_no;
+	sockfd = connect2server();
+	packaging();
+	send();
+	check();
+	unpackaging();
+
 	fprintf(stderr, "mylib: close called from %d\n", fildes);
-	return orig_close(fildes);
+	errno = err_no;
+	return rv;
+}
+
+ssize_t write(int fildes, const void *buf, size_t nbyte) {
+	int sockfd, err_no;
+	ssize_t rv;
+	sockfd = connect2server();
+	packaging();
+	send();
+	check();
+	unpackaging();
+
+	fprintf(stderr, "mylib: write called from %d\n", fildes);
+	errno = err_no;
+	return rv;
 }
 
 ssize_t read(int fildes, void *buf, size_t nbyte) {
-	connect2server("read");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "read");
 	fprintf(stderr, "mylib: read called from %d\n", fildes);
 	return orig_read(fildes, buf, nbyte);
 }
 
-ssize_t write(int fildes, const void *buf, size_t nbyte) {
-	connect2server("write");
-	fprintf(stderr, "mylib: write called from %d\n", fildes);
-	return orig_write(fildes, buf, nbyte);
-}
-
 off_t lseek(int fildes, off_t offset, int whence) {
-	connect2server("lseek");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "lseek");
 	fprintf(stderr, "mylib: lseek called from %d\n", fildes);
 	return orig_lseek(fildes, offset, whence);
 }
 
 int stat(const char *pathname, struct stat *buf) {
-	connect2server("stat");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "stat");
 	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
 	return orig_stat(pathname, buf);
 }
 
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
-	connect2server("stat");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "stat");
 	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
 	return orig___xstat(ver, pathname, stat_buf);
 }
 
 int unlink(const char *pathname) {
-	connect2server("unlink");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "unlink");
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
 	return orig_unlink(pathname);
 }
 
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
-	connect2server("getdirentries");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "getdirentries");
 	fprintf(stderr, "mylib: getdirentries called from %d\n", fd);
 	return orig_getdirentries(fd, buf, nbytes, basep);
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
-	connect2server("getdirtree");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "getdirtree");
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 	return orig_getdirtree(pathname);
 }
 
 void freedirtree(struct dirtreenode* dt) {
-	connect2server("freedirtree");
+	int sockfd;
+	sockfd = connect2server();
+	contact2server(sockfd, "freedirtree");
 	fprintf(stderr, "mylib: freedirtree called\n");
 	return orig_freedirtree(dt);
 }

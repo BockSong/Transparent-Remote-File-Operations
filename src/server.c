@@ -7,8 +7,30 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include <packet.h>
 
 #define MAXMSGLEN 100
+
+void execute_request(packet *p, packet *q) {
+	switch (p->opcode) {
+		// open
+		case 1:
+			// char* pkt = (char*)malloc(size);
+			orig_open(pathname, flags, m);
+			// q = ...
+			break;
+		// close
+		case 2:
+			orig_close(fildes);
+			// q = ...
+			break;
+		// write
+		case 3:
+			orig_write(fildes, buf, nbyte);
+			// q = ...
+			break;
+	}
+}
 
 int main(int argc, char**argv) {
 	char *msg="Hello from server";
@@ -58,6 +80,8 @@ int main(int argc, char**argv) {
 			buf[rv]=0;		// null terminate string to print
 			printf("%s\n", buf);  // print the received messege
 			
+			execute_request(buf, msg);
+
 			// send reply
 			fprintf(stderr, "server replying to client: %s\n", msg);
 			send_rv = send(sessfd, msg, strlen(msg), 0);
