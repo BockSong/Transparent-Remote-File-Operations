@@ -7,29 +7,48 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include <errno.h>
 #include <packet.h>
 
 #define MAXMSGLEN 100
+#define BUF_SIZE 256
 
-void execute_request(packet *p, packet *q) {
+void execute_request(char *buf, char *rt_msg) {
+	packet *p = (packet *)buf, *q;
+	int rv;
 	switch (p->opcode) {
 		// open
 		case 1:
-			// char* pkt = (char*)malloc(size);
-			orig_open(pathname, flags, m);
-			// q = ...
+			int flags;
+			mode_t m;
+			char *pathname;
+			memcpy(&flags, p->param, sizeof(int));
+			memcpy(&m, p->param + sizeof(int), sizeof(mode_t));
+			memcpy(&pathname, p->param + sizeof(int) + sizeof(mode_t), BUF_SIZE);
+			rv = open(pathname, flags, m);
 			break;
 		// close
 		case 2:
-			orig_close(fildes);
-			// q = ...
+			int fildes;
+			memcpy(&fildes, p->param, sizeof(int));
+			rv = close(fildes);
 			break;
 		// write
 		case 3:
-			orig_write(fildes, buf, nbyte);
-			// q = ...
+			int fildes;
+			size_t nbyte;
+			char *buf;
+			memcpy(&fildes, p->param, sizeof(int));
+			memcpy(&nbyte, p->param + sizeof(int), sizeof(size_t));
+			memcpy(&buf, p->param + sizeof(int) + sizeof(size_t), BUF_SIZE);
+			rv = write(fildes, buf, nbyte);
 			break;
 	}
+	q->opcode = 0;
+	q->param = malloc(2 * sizeof(int));
+	memcpy(q->param, &rv, sizeof(int));
+	memcpy(q->param + sizeof(int), &errno, sizeof(int));
+	rt_msg = (char *)q;
 }
 
 int main(int argc, char**argv) {
@@ -83,7 +102,7 @@ int main(int argc, char**argv) {
 			execute_request(buf, msg);
 
 			// send reply
-			fprintf(stderr, "server replying to client: %s\n", msg);
+			fprintf(stderr, "server replying to client\n");
 			send_rv = send(sessfd, msg, strlen(msg), 0);
 			if (send_rv<0) err(1,0);
 		}

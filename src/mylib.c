@@ -18,7 +18,8 @@
 #include <errno.h>
 #include <packet.h>
 
-#define MAXMSGLEN 100
+#define MAXMSGLEN 5000
+#define BUF_SIZE 256
 
 // The following line declares function pointers with the same prototype as the original functions.  
 int (*orig_open)(const char *pathname, int flags, ...);  // mode_t mode is needed when flags includes O_CREAT
@@ -81,7 +82,8 @@ packet* contact2server(int sockfd, packet* pkt) {
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
-	rv = send(sockfd, pkt, sizeof(int) + strlen(pkt->param), 0);	// send the whole packet
+	// TODO: not sure if strlen((char*)pkt) works. correct way to get length of a cast data structure?
+	rv = send(sockfd, (char *)pkt, strlen((char *)pkt), 0);	// send the whole packet //sizeof(int) + strlen(pkt->param)
 	if (rv<0) err(1,0);
 	
 	// get packet back
@@ -118,6 +120,7 @@ void contact2server_local(int sockfd, char *msg) {
 // This is our replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
 	int sockfd, rv, err_no;
+	packet *pkt, *rt_pkt;
 	mode_t m=0;
 	if (flags & O_CREAT) {
 		va_list a;
@@ -125,15 +128,24 @@ int open(const char *pathname, int flags, ...) {
 		m = va_arg(a, mode_t);
 		va_end(a);
 	}
-
 	sockfd = connect2server();
-	packaging();
-	send();
-	check();
-	unpackaging();
+
+	// do packing for param
+	char *param = malloc(sizeof(int) + sizeof(mode_t) + BUF_SIZE);
+    memcpy(param, &flags, sizeof(int));
+	memcpy(param + sizeof(int), &m, sizeof(mode_t));
+	memcpy(param + sizeof(int) + sizeof(mode_t), &pathname, BUF_SIZE);
+	pkt = packing(CLOSE, param);
+	rt_pkt = contact2server(sockfd, pkt);
+	
+	memcpy(&rv, rt_pkt->param, sizeof(int));
+	if (rv < 0) {
+		// there is an error
+	}
+	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
+	errno = err_no;
 
 	fprintf(stderr, "mylib: open called for path %s\n", pathname);
-	errno = err_no;
 	return rv;
 }
 
@@ -141,27 +153,46 @@ int close(int fildes) {
 	int sockfd, rv, err_no;
 	packet *pkt, *rt_pkt;
 	sockfd = connect2server();
-	pkt = pack_close(fildes);
+
+	// do packing for param
+	char *param = malloc(sizeof(int));
+    memcpy(param, &fildes, sizeof(int));
+	pkt = packing(CLOSE, param);
 	rt_pkt = contact2server(sockfd, pkt);
-	check_error();
-	unpackaging(rt_pkt, *rv, *err_no);
+	
+	memcpy(&rv, rt_pkt->param, sizeof(int));
+	if (rv < 0) {
+		// there is an error
+	}
+	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
+	errno = err_no;
 
 	fprintf(stderr, "mylib: close called from %d\n", fildes);
-	errno = err_no;
 	return rv;
 }
 
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	int sockfd, err_no;
 	ssize_t rv;
+	packet *pkt, *rt_pkt;
 	sockfd = connect2server();
-	packaging();
-	send();
-	check();
-	unpackaging();
+
+	// do packing for param
+	char *param = malloc(sizeof(int));
+	memcpy(param, &fildes, sizeof(int));
+	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
+	memcpy(param + sizeof(int) + sizeof(size_t), &buf, BUF_SIZE);
+	pkt = packing(CLOSE, param);
+	rt_pkt = contact2server(sockfd, pkt);
+	
+	memcpy(&rv, rt_pkt->param, sizeof(int));
+	if (rv < 0) {
+		// there is an error
+	}
+	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
+	errno = err_no;
 
 	fprintf(stderr, "mylib: write called from %d\n", fildes);
-	errno = err_no;
 	return rv;
 }
 

@@ -14,6 +14,6 @@ typedef struct{
     char *param;
 } packet;
 
-packet* packaging(enum operations func, char* param);
+packet* packing(enum operations func, char* param);
 
 #endif
