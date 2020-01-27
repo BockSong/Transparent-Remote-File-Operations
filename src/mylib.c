@@ -75,7 +75,28 @@ int connect2server() {
 	return sockfd;
 }
 
-void contact2server(int sockfd, char *msg) {
+packet* contact2server(int sockfd, packet* pkt) {
+	char buf[MAXMSGLEN+1];
+	int rv;
+
+	// send packet to server
+	fprintf(stderr, "client sending to server\n");
+	rv = send(sockfd, pkt, sizeof(int) + strlen(pkt->param), 0);	// send the whole packet
+	if (rv<0) err(1,0);
+	
+	// get packet back
+	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
+	if (rv<0) err(1,0);			// in case something went wrong
+	buf[rv]=0;				// null terminate string to print
+	fprintf(stderr, "client got messge: %s\n", buf);
+	
+	// close socket
+	orig_close(sockfd);  // client is done
+
+	return (packet*)buf;
+}
+
+void contact2server_local(int sockfd, char *msg) {
 	char buf[MAXMSGLEN+1];
 	int rv;
 
@@ -118,11 +139,12 @@ int open(const char *pathname, int flags, ...) {
 
 int close(int fildes) {
 	int sockfd, rv, err_no;
+	packet *pkt, *rt_pkt;
 	sockfd = connect2server();
-	packaging();
-	send();
-	check();
-	unpackaging();
+	pkt = pack_close(fildes);
+	rt_pkt = contact2server(sockfd, pkt);
+	check_error();
+	unpackaging(rt_pkt, *rv, *err_no);
 
 	fprintf(stderr, "mylib: close called from %d\n", fildes);
 	errno = err_no;
@@ -146,7 +168,7 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 ssize_t read(int fildes, void *buf, size_t nbyte) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "read");
+	contact2server_local(sockfd, "read");
 	fprintf(stderr, "mylib: read called from %d\n", fildes);
 	return orig_read(fildes, buf, nbyte);
 }
@@ -154,7 +176,7 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 off_t lseek(int fildes, off_t offset, int whence) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "lseek");
+	contact2server_local(sockfd, "lseek");
 	fprintf(stderr, "mylib: lseek called from %d\n", fildes);
 	return orig_lseek(fildes, offset, whence);
 }
@@ -162,7 +184,7 @@ off_t lseek(int fildes, off_t offset, int whence) {
 int stat(const char *pathname, struct stat *buf) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "stat");
+	contact2server_local(sockfd, "stat");
 	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
 	return orig_stat(pathname, buf);
 }
@@ -170,7 +192,7 @@ int stat(const char *pathname, struct stat *buf) {
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "stat");
+	contact2server_local(sockfd, "stat");
 	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
 	return orig___xstat(ver, pathname, stat_buf);
 }
@@ -178,7 +200,7 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 int unlink(const char *pathname) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "unlink");
+	contact2server_local(sockfd, "unlink");
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
 	return orig_unlink(pathname);
 }
@@ -186,7 +208,7 @@ int unlink(const char *pathname) {
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "getdirentries");
+	contact2server_local(sockfd, "getdirentries");
 	fprintf(stderr, "mylib: getdirentries called from %d\n", fd);
 	return orig_getdirentries(fd, buf, nbytes, basep);
 }
@@ -194,7 +216,7 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 struct dirtreenode* getdirtree(const char *pathname) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "getdirtree");
+	contact2server_local(sockfd, "getdirtree");
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 	return orig_getdirtree(pathname);
 }
@@ -202,7 +224,7 @@ struct dirtreenode* getdirtree(const char *pathname) {
 void freedirtree(struct dirtreenode* dt) {
 	int sockfd;
 	sockfd = connect2server();
-	contact2server(sockfd, "freedirtree");
+	contact2server_local(sockfd, "freedirtree");
 	fprintf(stderr, "mylib: freedirtree called\n");
 	return orig_freedirtree(dt);
 }
