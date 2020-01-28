@@ -1,15 +1,19 @@
-CC=gcc
-CFLAGS=-Wall -Werror -fPIC -DPIC -std=gnu99 -I../include
-LDFLAGS=-L../lib
-LDLIBS=-ldirtree
+# Implicit rules
+ROGS=client server
+CFLAGS+=-Wall
 
-all: server mylib.so
+# Main structure
+all: mylib.so server $(PROGS)
 
-server: server.o packet.o
+mylib.o: mylib.c
+	gcc -Wall -fPIC -DPIC -c mylib.c -I../include
 
-mylib.so: mylib.o packet.o
-	$(LD) -shared -o mylib.so mylib.o packet.o $(LDFLAGS) -ldl $(LDLIBS)
+mylib.so: mylib.o
+	ld -shared -o mylib.so mylib.o -ldl -L../lib
 
-.PHONY: all clean
+server: server.c
+	gcc -Wall -o server server.c
+
 clean:
-	rm -rf *.o *.so server
+	rm -rf *.o *.so server $(PROGS)
+

@@ -17,9 +17,9 @@
 #include <err.h>
 #include <errno.h>
 
-#include "packet.h"
+//#include "packet.h"
 
-#define MAXMSGLEN 5000
+#define MAXMSGLEN 4096
 #define MAX_PATHNAME 256
 
 // The following line declares function pointers with the same prototype as the original functions.  
@@ -58,7 +58,7 @@ int connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15332; // For local test
+	port = 15229; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -78,20 +78,20 @@ int connect2server() {
 }
 
 //void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
-void contact2server(int sockfd, char* pkt, char* buf) {
+void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 	//char buf[MAXMSGLEN+1];
 	int rv;
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
-	rv = send(sockfd, pkt, strlen(pkt), 0);	// send the whole packet //sizeof(int) + strlen(pkt->param)
+	rv = send(sockfd, pkt, pkt_len, 0);	// send the whole packet //sizeof(int) + strlen(pkt->param)
 	if (rv<0) err(1,0);
 	
 	// get packet back
 	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
 	if (rv<0) err(1,0);			// in case something went wrong
 	buf[rv]=0;				// null terminate string to print
-	fprintf(stderr, "client got messge: %s\n", buf);
+	fprintf(stderr, "client got messge\n");
 	
 	// close socket
 	orig_close(sockfd);  // client is done
@@ -130,24 +130,27 @@ int open(const char *pathname, int flags, ...) {
 		m = va_arg(a, mode_t);
 		va_end(a);
 	}
+
+	fprintf(stderr, "mylib: open called for flags: %d, mode: %d, path: %s\n", flags, (int)m, pathname);
 	sockfd = connect2server();
 
 	// param packing
-	char *param = malloc(sizeof(int) + sizeof(mode_t) + MAX_PATHNAME);
+	int param_len = sizeof(int) + sizeof(mode_t) + MAX_PATHNAME;
+	char *param = malloc(param_len);
     memcpy(param, &flags, sizeof(int));
 	memcpy(param + sizeof(int), &m, sizeof(mode_t));
-	memcpy(param + sizeof(int) + sizeof(mode_t), &pathname, MAX_PATHNAME);
+	memcpy(param + sizeof(int) + sizeof(mode_t), pathname, MAX_PATHNAME);
 
 	// pkt packing
 	int opcode = 1;
-	pkt = malloc(sizeof(int) + strlen(param));
+	pkt = malloc(sizeof(int) + param_len);
 	memcpy(pkt, &opcode, sizeof(int));
-	memcpy(pkt + sizeof(int), param, strlen(param));
+	memcpy(pkt + sizeof(int), param, param_len);
 	/*pkt = packing(OP_OPEN, param);
 	rt_pkt = malloc(sizeof(packet));
 	rt_pkt->param = malloc(sizeof())*/
 
-	contact2server(sockfd, pkt, rt_pkt);
+	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
@@ -156,7 +159,7 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
-	fprintf(stderr, "mylib: open called for path %s\n", pathname);
+	fprintf(stderr, "mylib: open call ended\n");
 	return rv;
 }
 
@@ -176,7 +179,7 @@ int close(int fildes) {
 	memcpy(pkt + sizeof(int), param, strlen(param));
 	//pkt = packing(OP_CLOSE, param);
 
-	contact2server(sockfd, pkt, rt_pkt);
+	contact2server(sockfd, pkt, strlen(pkt), rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
@@ -208,7 +211,7 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	memcpy(pkt + sizeof(int), param, strlen(param));
 	//pkt = packing(OP_WRITE, param);
 
-	contact2server(sockfd, pkt, rt_pkt);
+	contact2server(sockfd, pkt, strlen(pkt), rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {

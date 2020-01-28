@@ -10,10 +10,10 @@
 #include <err.h>
 #include <errno.h>
 
-#include "packet.h"
+//#include "packet.h"
 
-#define MAXMSGLEN 5000
-#define MAX_PATHNAME 256
+#define MAXMSGLEN 4096
+#define MAX_PATHNAME 512
 
 void execute_request(char *buf, char *rt_msg) {
 	//packet *p = (packet *)buf, *q;
@@ -24,22 +24,42 @@ void execute_request(char *buf, char *rt_msg) {
 		case 1: {
 			int flags;
 			mode_t m;
-			char *pathname;
+			char *pathname = (char *)malloc(MAX_PATHNAME);
+			fprintf(stderr, "OPEN:\n");
 			memcpy(&flags, buf + sizeof(int), sizeof(int));
 			memcpy(&m, buf + 2 * sizeof(int), sizeof(mode_t));
-			memcpy(&pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
+			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
+			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
 			rv = open(pathname, flags, m);
+			// reasons for seg: check your paras and open process
+			fprintf(stderr, "open rv: %d\n", rv);
+
+			/*q = malloc(sizeof(packet));
+			q->opcode = 0;
+			q->param = malloc(2 * sizeof(int));*/
+			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			//rt_msg = (char *)&q;
 			break;
 		}
 		// close
 		case 2: {
+			fprintf(stderr, "CLOSE:\n");
 			int fildes;
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			rv = close(fildes);
+
+			/*q = malloc(sizeof(packet));
+			q->opcode = 0;
+			q->param = malloc(2 * sizeof(int));*/
+			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			//rt_msg = (char *)&q;
 			break;
 		}
 		// write
 		case 3: {
+			fprintf(stderr, "WRITE:\n");
 			int fildes;
 			size_t nbyte;
 			char *buf;
@@ -47,19 +67,23 @@ void execute_request(char *buf, char *rt_msg) {
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
 			memcpy(&buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
 			rv = write(fildes, buf, nbyte);
+
+			/*q = malloc(sizeof(packet));
+			q->opcode = 0;
+			q->param = malloc(2 * sizeof(int));*/
+			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			//rt_msg = (char *)&q;
 			break;
 		}
+		default:
+			fprintf(stderr, "default\n");
+			break;
 	}
-	/*q = malloc(sizeof(packet));
-	q->opcode = 0;
-	q->param = malloc(2 * sizeof(int));*/
-	memcpy(rt_msg, &rv, sizeof(int));
-	memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
-	//rt_msg = (char *)&q;
 }
 
 int main(int argc, char**argv) {
-	char *msg="Hello from server";
+	char *msg;
 	char buf[MAXMSGLEN+1];
 	char *serverport;
 	unsigned short port;
@@ -71,7 +95,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	port = 15332; // For local test
+	port = 15229; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -104,8 +128,10 @@ int main(int argc, char**argv) {
 		// get messages and send replies to this client, until it goes away
 		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) { // receive up to MAXMSGLEN bytes into buf
 			buf[rv]=0;		// null terminate string to print
+			fprintf(stderr, "received msg: ");
 			printf("%s\n", buf);  // print the received messege
 			
+			msg = malloc(MAXMSGLEN);
 			execute_request(buf, msg);
 
 			// send reply
