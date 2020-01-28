@@ -77,14 +77,14 @@ int connect2server() {
 	return sockfd;
 }
 
-void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
-	char buf[MAXMSGLEN+1];
+//void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
+void contact2server(int sockfd, char* pkt, char* buf) {
+	//char buf[MAXMSGLEN+1];
 	int rv;
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
-	// TODO: not sure if strlen((char*)pkt) works. correct way to get length of a cast data structure?
-	rv = send(sockfd, (char *)pkt, strlen((char *)pkt), 0);	// send the whole packet //sizeof(int) + strlen(pkt->param)
+	rv = send(sockfd, pkt, strlen(pkt), 0);	// send the whole packet //sizeof(int) + strlen(pkt->param)
 	if (rv<0) err(1,0);
 	
 	// get packet back
@@ -96,7 +96,7 @@ void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
 	// close socket
 	orig_close(sockfd);  // client is done
 
-	memcpy(rt_pkt, (packet *)buf, )
+	//memcpy(rt_pkt, (packet *)buf, )
 }
 
 void contact2server_local(int sockfd, char *msg) {
@@ -121,7 +121,8 @@ void contact2server_local(int sockfd, char *msg) {
 // This is our replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
 	int sockfd, rv, err_no;
-	packet *pkt, *rt_pkt;
+	// packet *pkt, *rt_pkt;
+	char *pkt, rt_pkt[MAXMSGLEN+1];
 	mode_t m=0;
 	if (flags & O_CREAT) {
 		va_list a;
@@ -131,21 +132,28 @@ int open(const char *pathname, int flags, ...) {
 	}
 	sockfd = connect2server();
 
-	// do packing for param
+	// param packing
 	char *param = malloc(sizeof(int) + sizeof(mode_t) + MAX_PATHNAME);
     memcpy(param, &flags, sizeof(int));
 	memcpy(param + sizeof(int), &m, sizeof(mode_t));
 	memcpy(param + sizeof(int) + sizeof(mode_t), &pathname, MAX_PATHNAME);
-	pkt = packing(OP_OPEN, param);
+
+	// pkt packing
+	int opcode = 1;
+	pkt = malloc(sizeof(int) + strlen(param));
+	memcpy(pkt, &opcode, sizeof(int));
+	memcpy(pkt + sizeof(int), param, strlen(param));
+	/*pkt = packing(OP_OPEN, param);
 	rt_pkt = malloc(sizeof(packet));
-	rt_pkt->param = malloc(sizeof())
+	rt_pkt->param = malloc(sizeof())*/
+
 	contact2server(sockfd, pkt, rt_pkt);
 	
-	memcpy(&rv, rt_pkt->param, sizeof(int));
+	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
 		;// there is an error, do nothing?
 	}
-	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
+	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
 	fprintf(stderr, "mylib: open called for path %s\n", pathname);
@@ -154,20 +162,27 @@ int open(const char *pathname, int flags, ...) {
 
 int close(int fildes) {
 	int sockfd, rv, err_no;
-	packet *pkt, *rt_pkt;
+	char *pkt, rt_pkt[MAXMSGLEN+1];
 	sockfd = connect2server();
 
-	// do packing for param
+	// param packing
 	char *param = malloc(sizeof(int));
     memcpy(param, &fildes, sizeof(int));
-	pkt = packing(OP_CLOSE, param);
-	rt_pkt = contact2server(sockfd, pkt);
+
+	// pkt packing
+	int opcode = 2;
+	pkt = malloc(sizeof(int) + strlen(param));
+	memcpy(pkt, &opcode, sizeof(int));
+	memcpy(pkt + sizeof(int), param, strlen(param));
+	//pkt = packing(OP_CLOSE, param);
+
+	contact2server(sockfd, pkt, rt_pkt);
 	
-	memcpy(&rv, rt_pkt->param, sizeof(int));
+	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
-		// there is an error
+		;// there is an error, do nothing?
 	}
-	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
+	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
 	fprintf(stderr, "mylib: close called from %d\n", fildes);
@@ -177,22 +192,29 @@ int close(int fildes) {
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	int sockfd, err_no;
 	ssize_t rv;
-	packet *pkt, *rt_pkt;
+	char *pkt, rt_pkt[MAXMSGLEN+1];
 	sockfd = connect2server();
 
-	// do packing for param
+	// param packing
 	char *param = malloc(sizeof(int) + sizeof(size_t) + nbyte);
 	memcpy(param, &fildes, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
 	memcpy(param + sizeof(int) + sizeof(size_t), &buf, nbyte);
-	pkt = packing(OP_WRITE, param);
-	rt_pkt = contact2server(sockfd, pkt);
 	
-	memcpy(&rv, rt_pkt->param, sizeof(int));
+	// pkt packing
+	int opcode = 3;
+	pkt = malloc(sizeof(int) + strlen(param));
+	memcpy(pkt, &opcode, sizeof(int));
+	memcpy(pkt + sizeof(int), param, strlen(param));
+	//pkt = packing(OP_WRITE, param);
+
+	contact2server(sockfd, pkt, rt_pkt);
+	
+	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
-		// there is an error
+		;// there is an error, do nothing?
 	}
-	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
+	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
 	fprintf(stderr, "mylib: write called from %d\n", fildes);

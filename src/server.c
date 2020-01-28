@@ -12,28 +12,29 @@
 
 #include "packet.h"
 
-#define MAXMSGLEN 100
+#define MAXMSGLEN 5000
 #define MAX_PATHNAME 256
 
 void execute_request(char *buf, char *rt_msg) {
-	packet *p = (packet *)buf, *q;
-	int rv;
-	switch (p->opcode) {
+	//packet *p = (packet *)buf, *q;
+	int rv, opcode;
+	memcpy(&opcode, buf, sizeof(int));
+	switch (opcode) {
 		// open
 		case 1: {
 			int flags;
 			mode_t m;
 			char *pathname;
-			memcpy(&flags, p->param, sizeof(int));
-			memcpy(&m, p->param + sizeof(int), sizeof(mode_t));
-			memcpy(&pathname, p->param + sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
+			memcpy(&flags, buf + sizeof(int), sizeof(int));
+			memcpy(&m, buf + 2 * sizeof(int), sizeof(mode_t));
+			memcpy(&pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
 			rv = open(pathname, flags, m);
 			break;
 		}
 		// close
 		case 2: {
 			int fildes;
-			memcpy(&fildes, p->param, sizeof(int));
+			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			rv = close(fildes);
 			break;
 		}
@@ -42,19 +43,19 @@ void execute_request(char *buf, char *rt_msg) {
 			int fildes;
 			size_t nbyte;
 			char *buf;
-			memcpy(&fildes, p->param, sizeof(int));
-			memcpy(&nbyte, p->param + sizeof(int), sizeof(size_t));
-			memcpy(&buf, p->param + sizeof(int) + sizeof(size_t), nbyte);
+			memcpy(&fildes, buf + sizeof(int), sizeof(int));
+			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
+			memcpy(&buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
 			rv = write(fildes, buf, nbyte);
 			break;
 		}
 	}
-	q = malloc(sizeof(packet));
+	/*q = malloc(sizeof(packet));
 	q->opcode = 0;
-	q->param = malloc(2 * sizeof(int));
-	memcpy(q->param, &rv, sizeof(int));
-	memcpy(q->param + sizeof(int), &errno, sizeof(int));
-	rt_msg = (char *)&q;
+	q->param = malloc(2 * sizeof(int));*/
+	memcpy(rt_msg, &rv, sizeof(int));
+	memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+	//rt_msg = (char *)&q;
 }
 
 int main(int argc, char**argv) {
