@@ -79,7 +79,6 @@ int connect2server() {
 
 //void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
 void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
-	//char buf[MAXMSGLEN+1];
 	int rv;
 
 	// send packet to server
@@ -91,11 +90,10 @@ void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
 	if (rv<0) err(1,0);			// in case something went wrong
 	buf[rv]=0;				// null terminate string to print
-	fprintf(stderr, "client got messge\n");
+	fprintf(stderr, "client got messge (Not string format)\n");
 	
 	// close socket
 	orig_close(sockfd);  // client is done
-
 	//memcpy(rt_pkt, (packet *)buf, )
 }
 
@@ -154,7 +152,7 @@ int open(const char *pathname, int flags, ...) {
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
-		;// there is an error, do nothing?
+		;// there is an error, do anything?
 	}
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
@@ -166,29 +164,31 @@ int open(const char *pathname, int flags, ...) {
 int close(int fildes) {
 	int sockfd, rv, err_no;
 	char *pkt, rt_pkt[MAXMSGLEN+1];
+
+	fprintf(stderr, "mylib: close called from %d\n", fildes);
 	sockfd = connect2server();
 
 	// param packing
-	char *param = malloc(sizeof(int));
+	int param_len = sizeof(int);
+	char *param = malloc(param_len);
     memcpy(param, &fildes, sizeof(int));
 
 	// pkt packing
 	int opcode = 2;
-	pkt = malloc(sizeof(int) + strlen(param));
+	pkt = malloc(sizeof(int) + param_len);
 	memcpy(pkt, &opcode, sizeof(int));
-	memcpy(pkt + sizeof(int), param, strlen(param));
+	memcpy(pkt + sizeof(int), param, param_len);
 	//pkt = packing(OP_CLOSE, param);
 
-	contact2server(sockfd, pkt, strlen(pkt), rt_pkt);
+	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
-		;// there is an error, do nothing?
+		;// there is an error, do anything?
 	}
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
-	fprintf(stderr, "mylib: close called from %d\n", fildes);
 	return rv;
 }
 
@@ -196,95 +196,104 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	int sockfd, err_no;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1];
+
+	fprintf(stderr, "mylib: write called from %d\n", fildes);
 	sockfd = connect2server();
 
 	// param packing
-	char *param = malloc(sizeof(int) + sizeof(size_t) + nbyte);
+	int param_len = sizeof(int) + sizeof(size_t) + nbyte;
+	char *param = malloc(param_len);
 	memcpy(param, &fildes, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
-	memcpy(param + sizeof(int) + sizeof(size_t), &buf, nbyte);
+	memcpy(param + sizeof(int) + sizeof(size_t), buf, nbyte);
 	
 	// pkt packing
 	int opcode = 3;
-	pkt = malloc(sizeof(int) + strlen(param));
+	pkt = malloc(sizeof(int) + param_len);
 	memcpy(pkt, &opcode, sizeof(int));
-	memcpy(pkt + sizeof(int), param, strlen(param));
+	memcpy(pkt + sizeof(int), param, param_len);
 	//pkt = packing(OP_WRITE, param);
 
-	contact2server(sockfd, pkt, strlen(pkt), rt_pkt);
+	// try unpacking
+	ssize_t test_nbyte;
+	char *test_buf = (char *)malloc(MAXMSGLEN);
+	memcpy(&test_nbyte, pkt + 2 * sizeof(int), sizeof(size_t));
+	memcpy(test_buf, pkt + 2 * sizeof(int) + sizeof(size_t), nbyte);
+	fprintf(stderr, "test_nbyte: %d, test_buf: %s", (int)test_nbyte, test_buf);
+
+	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
 	if (rv < 0) {
-		;// there is an error, do nothing?
+		;// there is an error, do anything?
 	}
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
-	fprintf(stderr, "mylib: write called from %d\n", fildes);
 	return rv;
 }
 
 ssize_t read(int fildes, void *buf, size_t nbyte) {
 	int sockfd;
+	fprintf(stderr, "mylib: read called from %d\n", fildes);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "read");
-	fprintf(stderr, "mylib: read called from %d\n", fildes);
 	return orig_read(fildes, buf, nbyte);
 }
 
 off_t lseek(int fildes, off_t offset, int whence) {
 	int sockfd;
+	fprintf(stderr, "mylib: lseek called from %d\n", fildes);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "lseek");
-	fprintf(stderr, "mylib: lseek called from %d\n", fildes);
 	return orig_lseek(fildes, offset, whence);
 }
 
 int stat(const char *pathname, struct stat *buf) {
 	int sockfd;
+	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "stat");
-	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
 	return orig_stat(pathname, buf);
 }
 
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	int sockfd;
+	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "stat");
-	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
 	return orig___xstat(ver, pathname, stat_buf);
 }
 
 int unlink(const char *pathname) {
 	int sockfd;
+	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "unlink");
-	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
 	return orig_unlink(pathname);
 }
 
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	int sockfd;
+	fprintf(stderr, "mylib: getdirentries called from %d\n", fd);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "getdirentries");
-	fprintf(stderr, "mylib: getdirentries called from %d\n", fd);
 	return orig_getdirentries(fd, buf, nbytes, basep);
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
 	int sockfd;
+	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 	sockfd = connect2server();
 	contact2server_local(sockfd, "getdirtree");
-	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 	return orig_getdirtree(pathname);
 }
 
 void freedirtree(struct dirtreenode* dt) {
 	int sockfd;
+	fprintf(stderr, "mylib: freedirtree called\n");
 	sockfd = connect2server();
 	contact2server_local(sockfd, "freedirtree");
-	fprintf(stderr, "mylib: freedirtree called\n");
 	return orig_freedirtree(dt);
 }
 
