@@ -8,7 +8,8 @@
 #include <unistd.h>
 #include <err.h>
 #include <errno.h>
-#include <packet.h>
+
+#include "packet.h"
 
 #define MAXMSGLEN 100
 #define MAX_PATHNAME 256

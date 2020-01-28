@@ -16,7 +16,8 @@
 #include <string.h>
 #include <err.h>
 #include <errno.h>
-#include <packet.h>
+
+#include "packet.h"
 
 #define MAXMSGLEN 5000
 #define MAX_PATHNAME 256
