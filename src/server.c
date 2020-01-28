@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <string.h>
+#include <fcntl.h>  // for open
 #include <unistd.h>
 #include <err.h>
 #include <errno.h>
@@ -19,7 +20,7 @@ void execute_request(char *buf, char *rt_msg) {
 	int rv;
 	switch (p->opcode) {
 		// open
-		case 1:
+		case 1: {
 			int flags;
 			mode_t m;
 			char *pathname;
@@ -28,14 +29,16 @@ void execute_request(char *buf, char *rt_msg) {
 			memcpy(&pathname, p->param + sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
 			rv = open(pathname, flags, m);
 			break;
+		}
 		// close
-		case 2:
+		case 2: {
 			int fildes;
 			memcpy(&fildes, p->param, sizeof(int));
 			rv = close(fildes);
 			break;
+		}
 		// write
-		case 3:
+		case 3: {
 			int fildes;
 			size_t nbyte;
 			char *buf;
@@ -44,12 +47,14 @@ void execute_request(char *buf, char *rt_msg) {
 			memcpy(&buf, p->param + sizeof(int) + sizeof(size_t), nbyte);
 			rv = write(fildes, buf, nbyte);
 			break;
+		}
 	}
+	q = malloc(sizeof(packet));
 	q->opcode = 0;
 	q->param = malloc(2 * sizeof(int));
 	memcpy(q->param, &rv, sizeof(int));
 	memcpy(q->param + sizeof(int), &errno, sizeof(int));
-	rt_msg = (char *)q;
+	rt_msg = (char *)&q;
 }
 
 int main(int argc, char**argv) {

@@ -1,22 +1,22 @@
-#include <packet.h>
+#include "packet.h"
 
 // you need to do packing for params from caller before call this func
 packet* packing(enum operations func, char* param) {
     packet* pkt;
+	pkt = malloc(sizeof(packet));
     switch (func) {
-        case OPEN:
+        case OP_OPEN:
             pkt->opcode = 1;
-            pkt->param = param;
             break;
-        case CLOSE:
+        case OP_CLOSE:
             pkt->opcode = 2;
-            pkt->param = param;
             break;
-        case WRITE:
+        case OP_WRITE:
             pkt->opcode = 3;
-            pkt->param = param;
             break;
     }
+    pkt->param = malloc(strlen(param));
+    memcpy(pkt->param, param, strlen(param));
     return pkt;
 }
 

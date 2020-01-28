@@ -77,7 +77,7 @@ int connect2server() {
 	return sockfd;
 }
 
-packet* contact2server(int sockfd, packet* pkt) {
+void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
 	char buf[MAXMSGLEN+1];
 	int rv;
 
@@ -96,7 +96,7 @@ packet* contact2server(int sockfd, packet* pkt) {
 	// close socket
 	orig_close(sockfd);  // client is done
 
-	return (packet*)buf;
+	memcpy(rt_pkt, (packet *)buf, )
 }
 
 void contact2server_local(int sockfd, char *msg) {
@@ -136,12 +136,14 @@ int open(const char *pathname, int flags, ...) {
     memcpy(param, &flags, sizeof(int));
 	memcpy(param + sizeof(int), &m, sizeof(mode_t));
 	memcpy(param + sizeof(int) + sizeof(mode_t), &pathname, MAX_PATHNAME);
-	pkt = packing(CLOSE, param);
-	rt_pkt = contact2server(sockfd, pkt);
+	pkt = packing(OP_OPEN, param);
+	rt_pkt = malloc(sizeof(packet));
+	rt_pkt->param = malloc(sizeof())
+	contact2server(sockfd, pkt, rt_pkt);
 	
 	memcpy(&rv, rt_pkt->param, sizeof(int));
 	if (rv < 0) {
-		// there is an error
+		;// there is an error, do nothing?
 	}
 	memcpy(&err_no, rt_pkt->param + sizeof(int), sizeof(int));
 	errno = err_no;
@@ -158,7 +160,7 @@ int close(int fildes) {
 	// do packing for param
 	char *param = malloc(sizeof(int));
     memcpy(param, &fildes, sizeof(int));
-	pkt = packing(CLOSE, param);
+	pkt = packing(OP_CLOSE, param);
 	rt_pkt = contact2server(sockfd, pkt);
 	
 	memcpy(&rv, rt_pkt->param, sizeof(int));
@@ -183,7 +185,7 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	memcpy(param, &fildes, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
 	memcpy(param + sizeof(int) + sizeof(size_t), &buf, nbyte);
-	pkt = packing(CLOSE, param);
+	pkt = packing(OP_WRITE, param);
 	rt_pkt = contact2server(sockfd, pkt);
 	
 	memcpy(&rv, rt_pkt->param, sizeof(int));

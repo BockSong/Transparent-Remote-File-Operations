@@ -6,7 +6,7 @@
 #include <string.h>
 
 enum operations {
-    OPEN = 1, CLOSE, WRITE
+    OP_OPEN = 1, OP_CLOSE, OP_WRITE
 };
 
 typedef struct{
