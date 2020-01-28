@@ -1,7 +1,5 @@
 #include <packet.h>
 
-// No good reason to use single file for now
-
 // you need to do packing for params from caller before call this func
 packet* packing(enum operations func, char* param) {
     packet* pkt;

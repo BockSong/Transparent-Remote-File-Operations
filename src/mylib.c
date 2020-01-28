@@ -19,7 +19,7 @@
 #include <packet.h>
 
 #define MAXMSGLEN 5000
-#define BUF_SIZE 256
+#define MAX_PATHNAME 256
 
 // The following line declares function pointers with the same prototype as the original functions.  
 int (*orig_open)(const char *pathname, int flags, ...);  // mode_t mode is needed when flags includes O_CREAT
@@ -131,10 +131,10 @@ int open(const char *pathname, int flags, ...) {
 	sockfd = connect2server();
 
 	// do packing for param
-	char *param = malloc(sizeof(int) + sizeof(mode_t) + BUF_SIZE);
+	char *param = malloc(sizeof(int) + sizeof(mode_t) + MAX_PATHNAME);
     memcpy(param, &flags, sizeof(int));
 	memcpy(param + sizeof(int), &m, sizeof(mode_t));
-	memcpy(param + sizeof(int) + sizeof(mode_t), &pathname, BUF_SIZE);
+	memcpy(param + sizeof(int) + sizeof(mode_t), &pathname, MAX_PATHNAME);
 	pkt = packing(CLOSE, param);
 	rt_pkt = contact2server(sockfd, pkt);
 	
@@ -178,10 +178,10 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	sockfd = connect2server();
 
 	// do packing for param
-	char *param = malloc(sizeof(int));
+	char *param = malloc(sizeof(int) + sizeof(size_t) + nbyte);
 	memcpy(param, &fildes, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
-	memcpy(param + sizeof(int) + sizeof(size_t), &buf, BUF_SIZE);
+	memcpy(param + sizeof(int) + sizeof(size_t), &buf, nbyte);
 	pkt = packing(CLOSE, param);
 	rt_pkt = contact2server(sockfd, pkt);
 	

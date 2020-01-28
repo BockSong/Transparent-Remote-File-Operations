@@ -11,7 +11,7 @@
 #include <packet.h>
 
 #define MAXMSGLEN 100
-#define BUF_SIZE 256
+#define MAX_PATHNAME 256
 
 void execute_request(char *buf, char *rt_msg) {
 	packet *p = (packet *)buf, *q;
@@ -24,7 +24,7 @@ void execute_request(char *buf, char *rt_msg) {
 			char *pathname;
 			memcpy(&flags, p->param, sizeof(int));
 			memcpy(&m, p->param + sizeof(int), sizeof(mode_t));
-			memcpy(&pathname, p->param + sizeof(int) + sizeof(mode_t), BUF_SIZE);
+			memcpy(&pathname, p->param + sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
 			rv = open(pathname, flags, m);
 			break;
 		// close
@@ -40,7 +40,7 @@ void execute_request(char *buf, char *rt_msg) {
 			char *buf;
 			memcpy(&fildes, p->param, sizeof(int));
 			memcpy(&nbyte, p->param + sizeof(int), sizeof(size_t));
-			memcpy(&buf, p->param + sizeof(int) + sizeof(size_t), BUF_SIZE);
+			memcpy(&buf, p->param + sizeof(int) + sizeof(size_t), nbyte);
 			rv = write(fildes, buf, nbyte);
 			break;
 	}
