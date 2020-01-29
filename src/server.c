@@ -5,18 +5,15 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <string.h>
-#include <fcntl.h>  // for open
+#include <fcntl.h>
 #include <unistd.h>
 #include <err.h>
 #include <errno.h>
-
-//#include "packet.h"
 
 #define MAXMSGLEN 4096
 #define MAX_PATHNAME 512
 
 void execute_request(char *buf, char *rt_msg, int *msg_len) {
-	//packet *p = (packet *)buf, *q;
 	int rv, opcode;
 	memcpy(&opcode, buf, sizeof(int));
 	switch (opcode) {
@@ -34,13 +31,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			rv = open(pathname, flags, m);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			/*q = malloc(sizeof(packet));
-			q->opcode = 0;
-			q->param = malloc(2 * sizeof(int));*/
 			memcpy(rt_msg, &rv, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
-			//rt_msg = (char *)&q;
-
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -54,13 +46,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			rv = close(fildes);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			/*q = malloc(sizeof(packet));
-			q->opcode = 0;
-			q->param = malloc(2 * sizeof(int));*/
 			memcpy(rt_msg, &rv, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
-			//rt_msg = (char *)&q;
-
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -78,13 +65,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			rv = write(fildes, w_buf, nbyte);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			/*q = malloc(sizeof(packet));
-			q->opcode = 0;
-			q->param = malloc(2 * sizeof(int));*/
 			memcpy(rt_msg, &rv, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
-			//rt_msg = (char *)&q;
-
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -92,7 +74,6 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "Default\n");
 			char *msg = "Hello from server";
 			memcpy(rt_msg, msg, strlen(msg));
-
 			*msg_len = strlen(msg);
 			break;
 	}

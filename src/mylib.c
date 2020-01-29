@@ -17,8 +17,6 @@
 #include <err.h>
 #include <errno.h>
 
-//#include "packet.h"
-
 #define MAXMSGLEN 4096
 #define MAX_PATHNAME 256
 
@@ -83,7 +81,7 @@ void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
-	rv = send(sockfd, pkt, pkt_len, 0);	// send the whole packet //sizeof(int) + strlen(pkt->param)
+	rv = send(sockfd, pkt, pkt_len, 0);	// send the whole packet
 	if (rv<0) err(1,0);
 	
 	// get packet back
@@ -94,7 +92,6 @@ void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 	
 	// close socket
 	orig_close(sockfd);  // client is done
-	//memcpy(rt_pkt, (packet *)buf, )
 }
 
 void contact2server_local(int sockfd, char *msg) {
@@ -119,7 +116,6 @@ void contact2server_local(int sockfd, char *msg) {
 // This is our replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
 	int sockfd, rv, err_no;
-	// packet *pkt, *rt_pkt;
 	char *pkt, rt_pkt[MAXMSGLEN+1];
 	mode_t m=0;
 	if (flags & O_CREAT) {
@@ -144,16 +140,10 @@ int open(const char *pathname, int flags, ...) {
 	pkt = malloc(sizeof(int) + param_len);
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
-	/*pkt = packing(OP_OPEN, param);
-	rt_pkt = malloc(sizeof(packet));
-	rt_pkt->param = malloc(sizeof())*/
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
-	if (rv < 0) {
-		;// there is an error, do anything?
-	}
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
@@ -178,14 +168,10 @@ int close(int fildes) {
 	pkt = malloc(sizeof(int) + param_len);
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
-	//pkt = packing(OP_CLOSE, param);
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
-	if (rv < 0) {
-		;// there is an error, do anything?
-	}
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
@@ -212,7 +198,6 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	pkt = malloc(sizeof(int) + param_len);
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
-	//pkt = packing(OP_WRITE, param);
 
 	// try unpacking
 	ssize_t test_nbyte;
@@ -224,9 +209,6 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt, sizeof(int));
-	if (rv < 0) {
-		;// there is an error, do anything?
-	}
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
