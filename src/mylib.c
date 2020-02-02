@@ -56,7 +56,7 @@ int connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	//port = 15228; // For local test
+	port = 15228; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -75,7 +75,6 @@ int connect2server() {
 	return sockfd;
 }
 
-//void contact2server(int sockfd, packet* pkt, packet* rt_pkt) {
 void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 	int rv;
 
@@ -147,7 +146,6 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 
-	fprintf(stderr, "mylib: open call ended\n");
 	return rv;
 }
 
@@ -183,7 +181,7 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1];
 
-	fprintf(stderr, "mylib: write called from %d\n", fildes);
+	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, buf);
 	sockfd = connect2server();
 
 	// param packing
@@ -199,16 +197,9 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	// try unpacking
-	ssize_t test_nbyte;
-	char *test_buf = (char *)malloc(MAXMSGLEN);
-	memcpy(&test_nbyte, pkt + 2 * sizeof(int), sizeof(size_t));
-	memcpy(test_buf, pkt + 2 * sizeof(int) + sizeof(size_t), nbyte);
-	fprintf(stderr, "test_nbyte: %d, test_buf: %s", (int)test_nbyte, test_buf);
-
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(int));
+	memcpy(&rv, rt_pkt, sizeof(size_t));
 	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
 	errno = err_no;
 

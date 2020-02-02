@@ -14,12 +14,12 @@
 #define MAX_PATHNAME 512
 
 void execute_request(char *buf, char *rt_msg, int *msg_len) {
-	int rv, opcode;
+	int opcode;
 	memcpy(&opcode, buf, sizeof(int));
 	switch (opcode) {
 		// open
 		case 1: {
-			int flags;
+			int rv, flags;
 			mode_t m;
 			char *pathname = (char *)malloc(MAX_PATHNAME);
 			fprintf(stderr, "--[OPEN]\n");
@@ -38,7 +38,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		}
 		// close
 		case 2: {
-			int fildes;
+			int rv, fildes;
 			fprintf(stderr, "--[CLOSE]:\n");
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
@@ -54,7 +54,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		// write
 		case 3: {
 			int fildes;
-			size_t nbyte;
+			size_t rv, nbyte;
 			char *w_buf = (char *)malloc(MAXMSGLEN);
 			fprintf(stderr, "--[WRITE]:\n");
 
@@ -63,11 +63,11 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			rv = write(fildes, w_buf, nbyte);
-			fprintf(stderr, "rv: %d\n", rv);
+			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg, &rv, sizeof(size_t));
 			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
-			*msg_len = 2 * sizeof(int);
+			*msg_len = sizeof(int) + sizeof(size_t);
 			break;
 		}
 		default:
@@ -92,7 +92,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	//port = 15228; // For local test
+	port = 15228; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
