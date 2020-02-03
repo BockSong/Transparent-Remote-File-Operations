@@ -33,8 +33,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			memcpy(rt_msg, &rv, sizeof(int));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -49,8 +49,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "fildes: %d\n", fildes);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			memcpy(rt_msg, &rv, sizeof(int));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -69,8 +69,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			memcpy(rt_msg, &rv, sizeof(size_t));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = sizeof(int) + sizeof(size_t);
 			break;
 		}
@@ -89,8 +89,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			memcpy(rt_msg, &rv, sizeof(size_t));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = sizeof(int) + sizeof(size_t);
 			break;
 		}
@@ -108,8 +108,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "fildes: %d, offset: %d, whence: %d\n", fildes, (int)offset, whence);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			memcpy(rt_msg, &rv, sizeof(off_t));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = sizeof(int) + sizeof(off_t);
 			break;
 		}
@@ -127,8 +127,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			memcpy(rt_msg, &rv, sizeof(int));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -147,8 +147,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "ver: %d, pathname: %s\n", ver, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			memcpy(rt_msg, &rv, sizeof(int));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = 2 * sizeof(int);
 			break;
 		}
@@ -164,8 +164,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			memcpy(rt_msg, &rv, sizeof(int));
-			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			*msg_len = 2 * sizeof(int);
 			break;
 		}

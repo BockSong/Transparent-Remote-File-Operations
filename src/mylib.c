@@ -76,7 +76,7 @@ int connect2server() {
 }
 
 void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
-	int rv;
+	int rv, err_no;
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
@@ -91,8 +91,13 @@ void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 	
 	// close socket
 	orig_close(sockfd);  // client is done
+
+	// Set errno
+	memcpy(&err_no, buf, sizeof(int));
+	errno = err_no;
 }
 
+// To be removed
 void contact2server_local(int sockfd, char *msg) {
 	char buf[MAXMSGLEN+1];
 	int rv;
@@ -112,9 +117,9 @@ void contact2server_local(int sockfd, char *msg) {
 	orig_close(sockfd);  // client is done
 }
 
-// This is our replacement for the open function from libc.
+// Replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
-	int sockfd, rv, err_no, param_len, opcode;
+	int sockfd, rv, param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	mode_t m=0;
 	if (flags & O_CREAT) {
@@ -142,15 +147,13 @@ int open(const char *pathname, int flags, ...) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(int));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
 
 int close(int fildes) {
-	int sockfd, rv, err_no, param_len, opcode;
+	int sockfd, rv, param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: close called from %d\n", fildes);
@@ -169,16 +172,14 @@ int close(int fildes) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(int));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
 
 // TODO: need to add sth with I/O redirection
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
-	int sockfd, err_no, param_len, opcode;
+	int sockfd, param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
@@ -200,16 +201,14 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(size_t));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
 
 // TODO: need to add sth with I/O redirection; RETURN AND MEMSET BUF??
 ssize_t read(int fildes, void *buf, size_t nbyte) {
-	int sockfd, err_no, param_len, opcode;
+	int sockfd, param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
@@ -231,10 +230,8 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(size_t));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
-	// Also memset buf here
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+	// Add memset buf here
 
 	return rv;
 }
@@ -263,9 +260,7 @@ off_t lseek(int fildes, off_t offset, int whence) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(off_t));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
@@ -292,9 +287,7 @@ int stat(const char *pathname, struct stat *buf) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(int));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
@@ -322,9 +315,7 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(int));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
@@ -349,9 +340,7 @@ int unlink(const char *pathname) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
-	memcpy(&rv, rt_pkt, sizeof(int));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 
 	return rv;
 }
