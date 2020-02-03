@@ -70,6 +70,54 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			*msg_len = sizeof(int) + sizeof(size_t);
 			break;
 		}
+		// read
+		case 4: {
+			int fildes;
+			size_t rv, nbyte;
+			char *w_buf = (char *)malloc(MAXMSGLEN);
+
+			memcpy(&fildes, buf + sizeof(int), sizeof(int));
+			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
+			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
+			rv = write(fildes, w_buf, nbyte);
+
+			fprintf(stderr, "--[READ]:\n");
+			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
+			fprintf(stderr, "rv: %d\n", (int)rv);
+
+			memcpy(rt_msg, &rv, sizeof(size_t));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			*msg_len = sizeof(int) + sizeof(size_t);
+			break;
+		}
+		// lseek
+		case 5: {
+			break;
+		}
+		// stat
+		case 6: {
+			break;
+		}
+		// __xstat
+		case 7: {
+			break;
+		}
+		// unlink
+		case 8: {
+			break;
+		}
+		// getdirentries
+		case 9: {
+			break;
+		}
+		// getdirtree
+		case 10: {
+			break;
+		}
+		// freedirtree
+		case 11: {
+			break;
+		}
 		default:
 			fprintf(stderr, "Default\n");
 			char *msg = "Hello from server";

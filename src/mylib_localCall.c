@@ -182,7 +182,7 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1];
 
-	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, (char *)buf);
+	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, buf);
 	sockfd = connect2server();
 
 	// param packing
@@ -209,33 +209,11 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 
 // TODO: need to add sth with I/O redirection
 ssize_t read(int fildes, void *buf, size_t nbyte) {
-	int sockfd, err_no;
-	ssize_t rv;
-	char *pkt, rt_pkt[MAXMSGLEN+1];
-
-	fprintf(stderr, "mylib: read called from %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, (char *)buf);
+	int sockfd;
+	fprintf(stderr, "mylib: read called from %d\n", fildes);
 	sockfd = connect2server();
-
-	// param packing
-	int param_len = sizeof(int) + sizeof(size_t) + nbyte;
-	char *param = malloc(param_len);
-	memcpy(param, &fildes, sizeof(int));
-	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
-	memcpy(param + sizeof(int) + sizeof(size_t), buf, nbyte);
-	
-	// pkt packing
-	int opcode = 4;
-	pkt = malloc(sizeof(int) + param_len);
-	memcpy(pkt, &opcode, sizeof(int));
-	memcpy(pkt + sizeof(int), param, param_len);
-
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
-	
-	memcpy(&rv, rt_pkt, sizeof(size_t));
-	memcpy(&err_no, rt_pkt + sizeof(int), sizeof(int));
-	errno = err_no;
-
-	return rv;
+	contact2server_local(sockfd, "read");
+	return orig_read(fildes, buf, nbyte);
 }
 
 // TODO: need to add sth with I/O redirection?
