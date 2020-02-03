@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <string.h>
@@ -22,13 +23,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			int rv, flags;
 			mode_t m;
 			char *pathname = (char *)malloc(MAX_PATHNAME);
-			fprintf(stderr, "--[OPEN]\n");
 
 			memcpy(&flags, buf + sizeof(int), sizeof(int));
 			memcpy(&m, buf + 2 * sizeof(int), sizeof(mode_t));
 			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
-			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
 			rv = open(pathname, flags, m);
+
+			fprintf(stderr, "--[OPEN]\n");
+			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
 			memcpy(rt_msg, &rv, sizeof(int));
@@ -39,11 +41,12 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		// close
 		case 2: {
 			int rv, fildes;
-			fprintf(stderr, "--[CLOSE]:\n");
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
-			fprintf(stderr, "fildes: %d\n", fildes);
 			rv = close(fildes);
+
+			fprintf(stderr, "--[CLOSE]:\n");
+			fprintf(stderr, "fildes: %d\n", fildes);
 			fprintf(stderr, "rv: %d\n", rv);
 
 			memcpy(rt_msg, &rv, sizeof(int));
@@ -56,13 +59,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			int fildes;
 			size_t rv, nbyte;
 			char *w_buf = (char *)malloc(MAXMSGLEN);
-			fprintf(stderr, "--[WRITE]:\n");
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
 			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
-			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			rv = write(fildes, w_buf, nbyte);
+
+			fprintf(stderr, "--[WRITE]:\n");
+			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
 			memcpy(rt_msg, &rv, sizeof(size_t));
@@ -74,15 +78,15 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		case 4: {
 			int fildes;
 			size_t rv, nbyte;
-			char *w_buf = (char *)malloc(MAXMSGLEN);
+			char *r_buf = (char *)malloc(MAXMSGLEN);
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
-			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
-			rv = write(fildes, w_buf, nbyte);
+			memcpy(r_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
+			rv = read(fildes, r_buf, nbyte);
 
 			fprintf(stderr, "--[READ]:\n");
-			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
+			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
 			memcpy(rt_msg, &rv, sizeof(size_t));
@@ -92,18 +96,77 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		}
 		// lseek
 		case 5: {
+			int fildes, whence;
+			off_t rv, offset;
+
+			memcpy(&fildes, buf + sizeof(int), sizeof(int));
+			memcpy(&offset, buf + 2 * sizeof(int), sizeof(off_t));
+			memcpy(&whence, buf + 2 * sizeof(int) + sizeof(off_t), sizeof(int));
+			rv = lseek(fildes, offset, whence);
+
+			fprintf(stderr, "--[LSEEK]:\n");
+			fprintf(stderr, "fildes: %d, offset: %d, whence: %d\n", fildes, (int)offset, whence);
+			fprintf(stderr, "rv: %d\n", (int)rv);
+
+			memcpy(rt_msg, &rv, sizeof(off_t));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			*msg_len = sizeof(int) + sizeof(off_t);
 			break;
 		}
 		// stat
 		case 6: {
+			int rv;
+			struct stat *s_buf = (struct stat *)malloc(sizeof(struct stat));
+			char *pathname = (char *)malloc(MAX_PATHNAME);
+
+			memcpy(s_buf, buf + sizeof(int), sizeof(struct stat));
+			memcpy(pathname, buf + sizeof(int) + sizeof(struct stat), MAX_PATHNAME);
+			rv = stat(pathname, s_buf);
+
+			fprintf(stderr, "--[STAT]\n");
+			fprintf(stderr, "pathname: %s\n", pathname);
+			fprintf(stderr, "rv: %d\n", rv);
+
+			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			*msg_len = 2 * sizeof(int);
 			break;
 		}
 		// __xstat
 		case 7: {
+			int rv, ver;
+			struct stat *s_buf = (struct stat *)malloc(sizeof(struct stat));
+			char *pathname = (char *)malloc(MAX_PATHNAME);
+
+			memcpy(&ver, buf + sizeof(int), sizeof(int));
+			memcpy(s_buf, buf + 2 * sizeof(int), sizeof(struct stat));
+			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(struct stat), MAX_PATHNAME);
+			rv = __xstat(ver, pathname, s_buf);
+
+			fprintf(stderr, "--[__XSTAT]\n");
+			fprintf(stderr, "ver: %d, pathname: %s\n", ver, pathname);
+			fprintf(stderr, "rv: %d\n", rv);
+
+			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			*msg_len = 2 * sizeof(int);
 			break;
 		}
 		// unlink
 		case 8: {
+			int rv;
+			char *pathname = (char *)malloc(MAX_PATHNAME);
+
+			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
+			rv = unlink(pathname);
+
+			fprintf(stderr, "--[UNLINK]\n");
+			fprintf(stderr, "pathname: %s\n", pathname);
+			fprintf(stderr, "rv: %d\n", rv);
+
+			memcpy(rt_msg, &rv, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &errno, sizeof(int));
+			*msg_len = 2 * sizeof(int);
 			break;
 		}
 		// getdirentries
