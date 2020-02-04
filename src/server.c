@@ -203,7 +203,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		}
 		default:
 			fprintf(stderr, "Default\n");
-			char *msg = "Hello from server";
+			char *msg = "Default msg from server";
 			memcpy(rt_msg, msg, strlen(msg));
 			*msg_len = strlen(msg);
 			break;
@@ -215,7 +215,7 @@ int main(int argc, char**argv) {
 	char buf[MAXMSGLEN+1];
 	char *serverport;
 	unsigned short port;
-	int sockfd, sessfd, rv, send_rv, msg_len;
+	int sockfd, sessfd, rv, send_rv, msg_len, pid;
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
 	
@@ -223,7 +223,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	port = 15228; // For local test
+	port = 15227; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -243,36 +243,47 @@ int main(int argc, char**argv) {
 	rv = listen(sockfd, 5);  // listening for clients, queue up to 5
 	if (rv<0) err(1,0);
 	
-	// main server loop, linearly handle clients one at a time, with unlimited times
+	// main server loop, concurrently handle clients with unlimited requests
 	while(1) {
-		fprintf(stderr, "Waiting for client\n");
+		pid = 100;
+		fprintf(stderr, "Waiting for client from server %d\n", pid);
 		// wait for next client, get session socket
 		sa_size = sizeof(struct sockaddr_in);
-		// accept() blocks until a client has connected
+		// accept() blocks until a client has connected(, then fork a child process to deal with it)
 		sessfd = accept(sockfd, (struct sockaddr *)&cli, &sa_size);
 		if (sessfd<0) err(1,0);
 		
-		// get messages and send replies to this client, until it goes away
-		while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) { // receive up to MAXMSGLEN bytes into buf
-			buf[rv]=0;		// null terminate string to print
-			fprintf(stderr, "received msg: ");
-			printf("%s\n", buf);  // print the received messege
-			
-			msg = malloc(MAXMSGLEN);
-			execute_request(buf, msg, &msg_len);
+		pid = fork(); 
+		if (pid == 0) {  // child process
+			close(sockfd);  // child does not need this
 
-			// send reply
-			fprintf(stderr, "server replying to client\n");
-			send_rv = send(sessfd, msg, msg_len, 0);
-			if (send_rv<0) err(1,0);
+			// get messages and send replies to this client, until it goes away
+			while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) { // receive up to MAXMSGLEN bytes into buf
+				buf[rv]=0;		// null terminate string to print
+				fprintf(stderr, "received msg from server %d: ", pid);
+				printf("%s\n", buf);  // print the received messege
+				
+				msg = malloc(MAXMSGLEN);
+				execute_request(buf, msg, &msg_len);
+
+				// send reply
+				fprintf(stderr, "server replying to client from server %d\n", pid);
+				send_rv = send(sessfd, msg, msg_len, 0);
+				if (send_rv<0) err(1,0);
+			}
+
+			// if received bytes < 0, either client closed connection, or error
+			if (rv<0) err(1,0);
+			fprintf(stderr, "child server shutting down from server %d\n", pid);
+			close(sessfd);  // done with this client
+			exit(0);
 		}
 
-		// if received bytes < 0, either client closed connection, or error
-		if (rv<0) err(1,0);
-		close(sessfd);  // done with this client
+		// parent process
+		close(sessfd);  // parent does not need this
 	}
 	
-	fprintf(stderr, "server shutting down cleanly\n");
+	fprintf(stderr, "server shutting down cleanly from server %d\n", pid);
 	// close socket
 	close(sockfd);  // server is done
 

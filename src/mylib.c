@@ -21,6 +21,8 @@
 #define MAX_PATHNAME 256
 #define FD_OFFSET 2000
 
+int sockfd;
+
 // The following line declares function pointers with the same prototype as the original functions.  
 int (*orig_open)(const char *pathname, int flags, ...);  // mode_t mode is needed when flags includes O_CREAT
 int (*orig_close)(int fildes);
@@ -37,11 +39,11 @@ void (*orig_freedirtree)(struct dirtreenode* dt);
 int fd_server2client(int fd) { return fd + 1024; }
 int fd_client2server(int fd) { return fd - 1024; }
 
-int connect2server() {
+void connect2server() {
+	int rv;
 	char *serverip;
 	char *serverport;
 	unsigned short port;
-	int sockfd, rv;
 	struct sockaddr_in srv;     // address structure
 	
 	// Get environment variable indicating the ip address of the server
@@ -60,7 +62,7 @@ int connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15228; // For local test
+	port = 15227; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -75,11 +77,9 @@ int connect2server() {
 	// actually connect to the server
 	rv = connect(sockfd, (struct sockaddr*)&srv, sizeof(struct sockaddr));
 	if (rv<0) err(1,0);
-
-	return sockfd;
 }
 
-void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
+void contact2server(char* pkt, int pkt_len, char* buf) {
 	int rv, err_no;
 
 	// send packet to server
@@ -93,16 +93,13 @@ void contact2server(int sockfd, char* pkt, int pkt_len, char* buf) {
 	buf[rv]=0;				// null terminate string to print
 	fprintf(stderr, "client got messge (Not string format)\n");
 	
-	// close socket
-	orig_close(sockfd);  // client is done
-
 	// Set errno
 	memcpy(&err_no, buf, sizeof(int));
 	errno = err_no;
 }
 
 // To be removed
-void contact2server_local(int sockfd, char *msg) {
+void contact2server_local(char *msg) {
 	char buf[MAXMSGLEN+1];
 	int rv;
 
@@ -116,14 +113,11 @@ void contact2server_local(int sockfd, char *msg) {
 	if (rv<0) err(1,0);			// in case something went wrong
 	buf[rv]=0;				// null terminate string to print
 	fprintf(stderr, "client got messge: %s\n", buf);
-	
-	// close socket
-	orig_close(sockfd);  // client is done
 }
 
 // Replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
-	int sockfd, rv, param_len, opcode;
+	int rv, param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	mode_t m=0;
 	if (flags & O_CREAT) {
@@ -132,9 +126,7 @@ int open(const char *pathname, int flags, ...) {
 		m = va_arg(a, mode_t);
 		va_end(a);
 	}
-
 	fprintf(stderr, "mylib: open called for flags: %d, mode: %d, path: %s\n", flags, (int)m, pathname);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int) + sizeof(mode_t) + MAX_PATHNAME;
@@ -149,7 +141,7 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	rv = fd_server2client(rv);
@@ -157,12 +149,11 @@ int open(const char *pathname, int flags, ...) {
 }
 
 int close(int fildes) {
-	int sockfd, rv, param_len, opcode;
+	int rv, param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "mylib: close called from %d\n", fd);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int);
@@ -175,20 +166,19 @@ int close(int fildes) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
 
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
-	int sockfd, param_len, opcode;
+	int param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t) + nbyte;
@@ -203,20 +193,19 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
 
 ssize_t read(int fildes, void *buf, size_t nbyte) {
-	int sockfd, param_len, opcode;
+	int param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "mylib: read called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t);
@@ -230,7 +219,7 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
@@ -240,13 +229,12 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 }
 
 off_t lseek(int fildes, off_t offset, int whence) {
-	int sockfd, param_len, opcode;
+	int param_len, opcode;
 	off_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "mylib: lseek called from %d\n", fd);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(off_t);
@@ -261,7 +249,7 @@ off_t lseek(int fildes, off_t offset, int whence) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
@@ -270,11 +258,10 @@ off_t lseek(int fildes, off_t offset, int whence) {
 
 // TODO: do FD transformation?
 int stat(const char *pathname, struct stat *buf) {
-	int sockfd, param_len, opcode, rv;
+	int param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = MAX_PATHNAME;
@@ -287,7 +274,7 @@ int stat(const char *pathname, struct stat *buf) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
@@ -297,11 +284,10 @@ int stat(const char *pathname, struct stat *buf) {
 
 // TODO: do FD transformation?
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
-	int sockfd, param_len, opcode, rv;
+	int param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int) + MAX_PATHNAME;
@@ -315,7 +301,7 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
@@ -324,11 +310,10 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 }
 
 int unlink(const char *pathname) {
-	int sockfd, param_len, opcode, rv;
+	int param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = MAX_PATHNAME;
@@ -341,20 +326,19 @@ int unlink(const char *pathname) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
 
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
-	int sockfd, param_len, opcode;
+	int param_len, opcode;
 	int rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fid = fd_client2server(fd);
 
 	fprintf(stderr, "mylib: getdirentries called from %d, nbytes: %d\n", fid, nbytes);
-	sockfd = connect2server();
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(long);
@@ -369,7 +353,7 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
 	
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
@@ -379,20 +363,15 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
-	int sockfd;
-
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
-	sockfd = connect2server();
-	contact2server_local(sockfd, "getdirtree");
+	contact2server_local("getdirtree");
 	return orig_getdirtree(pathname);
 }
 
 // Hint: does this func really need to be an RPC?
 void freedirtree(struct dirtreenode* dt) {
-	int sockfd;
 	fprintf(stderr, "mylib: freedirtree called\n");
-	sockfd = connect2server();
-	contact2server_local(sockfd, "freedirtree");
+	contact2server_local("freedirtree");
 	return orig_freedirtree(dt);
 }
 
@@ -410,6 +389,13 @@ void _init(void) {
 	orig_getdirentries = dlsym(RTLD_NEXT, "getdirentries");
 	orig_getdirtree = dlsym(RTLD_NEXT, "getdirtree");
 	orig_freedirtree = dlsym(RTLD_NEXT, "freedirtree");
-	fprintf(stderr, "Init mylib\n");
+
+	connect2server();
+	fprintf(stderr, "Init mylib: connected to server\n");
 }
 
+// Automatically called when program is ended
+void _fini(void) {
+	// close socket
+	orig_close(sockfd);  // client is done
+}
