@@ -14,8 +14,11 @@
 
 #define MAXMSGLEN 4096
 #define MAX_PATHNAME 512
+#define FD_OFFSET 2000
 
-void execute_request(char *buf, char *rt_msg, int *msg_len) {
+int fd_table[FD_OFFSET];
+
+void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 	int opcode;
 	memcpy(&opcode, buf, sizeof(int));
 	switch (opcode) {
@@ -29,6 +32,9 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			memcpy(&m, buf + 2 * sizeof(int), sizeof(mode_t));
 			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
 			rv = open(pathname, flags, m);
+			if (fd_table[rv] != -1)
+				fprintf(stderr, "!!! error: this fd is not available !!!\n");
+			fd_table[rv] = sessfd;
 
 			fprintf(stderr, "--[OPEN]\n");
 			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
@@ -42,9 +48,15 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		// close
 		case 2: {
 			int rv, fildes;
-
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
-			rv = close(fildes);
+
+			// fd access control for multi-client security
+			if (fd_table[fildes] != sessfd)
+				rv = -1;
+			else {
+				rv = close(fildes);
+				fd_table[fildes] = -1;
+			}
 
 			fprintf(stderr, "--[CLOSE]:\n");
 			fprintf(stderr, "fildes: %d\n", fildes);
@@ -66,7 +78,12 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			w_buf = (char *)malloc(nbyte);
 			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
 
-			rv = write(fildes, w_buf, nbyte);
+			// fd access control for multi-client security
+			if (fd_table[fildes] != sessfd)
+				rv = -1;
+			else
+				rv = write(fildes, w_buf, nbyte);
+
 			fprintf(stderr, "--[WRITE]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
@@ -86,7 +103,12 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
 			r_buf = (char *)malloc(nbyte);
 
-			rv = read(fildes, r_buf, nbyte);
+			// fd access control for multi-client security
+			if (fd_table[fildes] != sessfd)
+				rv = -1;
+			else
+				rv = read(fildes, r_buf, nbyte);
+
 			fprintf(stderr, "--[READ]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
@@ -105,7 +127,12 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			memcpy(&offset, buf + 2 * sizeof(int), sizeof(off_t));
 			memcpy(&whence, buf + 2 * sizeof(int) + sizeof(off_t), sizeof(int));
-			rv = lseek(fildes, offset, whence);
+
+			// fd access control for multi-client security
+			if (fd_table[fildes] != sessfd)
+				rv = -1;
+			else
+				rv = lseek(fildes, offset, whence);
 
 			fprintf(stderr, "--[LSEEK]:\n");
 			fprintf(stderr, "fildes: %d, offset: %d, whence: %d\n", fildes, (int)offset, whence);
@@ -182,9 +209,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			memcpy(basep, buf + 3 * sizeof(int), sizeof(long));
 			g_buf = (char *)malloc(nbytes);
 
-			rv = getdirentries(fd, g_buf, nbytes, basep);
+			// fd access control for multi-client security
+			if (fd_table[fd] != sessfd)
+				rv = -1;
+			else
+				rv = getdirentries(fd, g_buf, nbytes, basep);
+
 			fprintf(stderr, "--[getdirentries]:\n");
-			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fd, nbytes, g_buf);
+			fprintf(stderr, "fildes: %d, nbyte: %d\n", fd, nbytes);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
 			memcpy(rt_msg, &errno, sizeof(int));
@@ -218,6 +250,9 @@ int main(int argc, char**argv) {
 	int sockfd, sessfd, rv, send_rv, msg_len, pid;
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
+
+	// -1 denotes unused; non-negative means the belonging sessfd.
+	memset(fd_table, -1, FD_OFFSET);
 	
 	// Get environment variable indicating the port of the server
 	serverport = getenv("serverport15440");
@@ -264,7 +299,7 @@ int main(int argc, char**argv) {
 				printf("%s\n", buf);  // print the received messege
 				
 				msg = malloc(MAXMSGLEN);
-				execute_request(buf, msg, &msg_len);
+				execute_request(buf, msg, &msg_len, sessfd);
 
 				// send reply
 				fprintf(stderr, "server replying to client from server %d\n", pid);

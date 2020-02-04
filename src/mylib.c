@@ -256,7 +256,6 @@ off_t lseek(int fildes, off_t offset, int whence) {
 	return rv;
 }
 
-// TODO: do FD transformation?
 int stat(const char *pathname, struct stat *buf) {
 	int param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
@@ -282,7 +281,6 @@ int stat(const char *pathname, struct stat *buf) {
 	return rv;
 }
 
-// TODO: do FD transformation?
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	int param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
@@ -358,7 +356,6 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), nbytes);
-	fprintf(stderr, "getdirentries: read called ended, buf: %s\n", (char *)buf);
 	return rv;
 }
 
