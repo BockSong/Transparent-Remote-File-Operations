@@ -59,13 +59,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		case 3: {
 			int fildes;
 			size_t rv, nbyte;
-			char *w_buf = (char *)malloc(MAXMSGLEN);
+			char *w_buf;
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
+			w_buf = (char *)malloc(nbyte);
 			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
-			rv = write(fildes, w_buf, nbyte);
 
+			rv = write(fildes, w_buf, nbyte);
 			fprintf(stderr, "--[WRITE]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
@@ -174,13 +175,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		case 9: {
 			int fd, rv, nbytes;
 			long *basep = (long *)malloc(sizeof(long));
-			char *g_buf = (char *)malloc(MAXMSGLEN);
+			char *g_buf;
 
 			memcpy(&fd, buf + sizeof(int), sizeof(int));
 			memcpy(&nbytes, buf + 2 * sizeof(int), sizeof(int));
 			memcpy(basep, buf + 3 * sizeof(int), sizeof(long));
-			rv = getdirentries(fd, g_buf, nbytes, basep);
+			g_buf = (char *)malloc(nbytes);
 
+			rv = getdirentries(fd, g_buf, nbytes, basep);
 			fprintf(stderr, "--[getdirentries]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fd, nbytes, g_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
