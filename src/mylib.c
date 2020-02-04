@@ -19,6 +19,7 @@
 
 #define MAXMSGLEN 4096
 #define MAX_PATHNAME 256
+#define FD_OFFSET 2000
 
 // The following line declares function pointers with the same prototype as the original functions.  
 int (*orig_open)(const char *pathname, int flags, ...);  // mode_t mode is needed when flags includes O_CREAT
@@ -32,6 +33,9 @@ int (*orig_unlink)(const char *pathname);
 int (*orig_getdirentries)(int fd, char *buf, int nbytes, long *basep);
 struct dirtreenode* (*orig_getdirtree)(const char *pathname);
 void (*orig_freedirtree)(struct dirtreenode* dt);
+
+int fd_server2client(int fd) { return fd + 1024; }
+int fd_client2server(int fd) { return fd - 1024; }
 
 int connect2server() {
 	char *serverip;
@@ -148,20 +152,22 @@ int open(const char *pathname, int flags, ...) {
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+	rv = fd_server2client(rv);
 	return rv;
 }
 
 int close(int fildes) {
 	int sockfd, rv, param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: close called from %d\n", fildes);
+	fprintf(stderr, "mylib: close called from %d\n", fd);
 	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int);
 	param = malloc(param_len);
-    memcpy(param, &fildes, sizeof(int));
+    memcpy(param, &fd, sizeof(int));
 
 	// pkt packing
 	opcode = 2;
@@ -175,19 +181,19 @@ int close(int fildes) {
 	return rv;
 }
 
-// TODO: need to add sth with I/O redirection
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	int sockfd, param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, (char *)buf);
+	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
 	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t) + nbyte;
 	param = malloc(param_len);
-	memcpy(param, &fildes, sizeof(int));
+	memcpy(param, &fd, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
 	memcpy(param + sizeof(int) + sizeof(size_t), buf, nbyte);
 	
@@ -203,19 +209,19 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	return rv;
 }
 
-// TODO: do FD transformation
 ssize_t read(int fildes, void *buf, size_t nbyte) {
 	int sockfd, param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: read called from %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, (char *)buf);
+	fprintf(stderr, "mylib: read called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
 	sockfd = connect2server();
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t);
 	param = malloc(param_len);
-	memcpy(param, &fildes, sizeof(int));
+	memcpy(param, &fd, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
 	
 	// pkt packing
@@ -233,19 +239,19 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 	return rv;
 }
 
-// TODO: do FD transformation
 off_t lseek(int fildes, off_t offset, int whence) {
 	int sockfd, param_len, opcode;
 	off_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: lseek called from %d\n", fildes);
+	fprintf(stderr, "mylib: lseek called from %d\n", fd);
 	sockfd = connect2server();
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(off_t);
 	param = malloc(param_len);
-	memcpy(param, &fildes, sizeof(int));
+	memcpy(param, &fd, sizeof(int));
 	memcpy(param + sizeof(int), &offset, sizeof(off_t));
 	memcpy(param + sizeof(int) + sizeof(off_t), &whence, sizeof(int));
 	
@@ -341,19 +347,19 @@ int unlink(const char *pathname) {
 	return rv;
 }
 
-// TODO: do FD transformation?
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	int sockfd, param_len, opcode;
 	int rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int fid = fd_client2server(fd);
 
-	fprintf(stderr, "mylib: getdirentries called from %d, nbytes: %d\n", fd, nbytes);
+	fprintf(stderr, "mylib: getdirentries called from %d, nbytes: %d\n", fid, nbytes);
 	sockfd = connect2server();
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(long);
 	param = malloc(param_len);
-	memcpy(param, &fd, sizeof(int));
+	memcpy(param, &fid, sizeof(int));
 	memcpy(param + sizeof(int), &nbytes, sizeof(int));
 	memcpy(param + 2 * sizeof(int), basep, sizeof(long));
 	
