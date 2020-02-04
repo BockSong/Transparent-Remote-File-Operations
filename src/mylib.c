@@ -98,23 +98,6 @@ void contact2server(char* pkt, int pkt_len, char* buf) {
 	errno = err_no;
 }
 
-// To be removed
-void contact2server_local(char *msg) {
-	char buf[MAXMSGLEN+1];
-	int rv;
-
-	// send message to server
-	fprintf(stderr, "client sending to server: %s\n", msg);
-	rv = send(sockfd, msg, strlen(msg), 0);	// send the whole msg
-	if (rv<0) err(1,0);
-	
-	// get message back
-	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
-	if (rv<0) err(1,0);			// in case something went wrong
-	buf[rv]=0;				// null terminate string to print
-	fprintf(stderr, "client got messge: %s\n", buf);
-}
-
 // Replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
 	int rv, param_len, opcode;
@@ -360,16 +343,35 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
+	int param_len, opcode;
+	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	// TODO: this is an unrecoverable transmission
+	struct dirteenode* rv = (char *)malloc(MAX_PATHNAME);
+
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
-	contact2server_local("getdirtree");
-	return orig_getdirtree(pathname);
+
+	// param packing
+	param_len = MAX_PATHNAME;
+	param = malloc(param_len);
+    memcpy(param, pathname, MAX_PATHNAME);
+
+	// pkt packing
+	opcode = 10;
+	pkt = malloc(sizeof(int) + param_len);
+	memcpy(pkt, &opcode, sizeof(int));
+	memcpy(pkt + sizeof(int), param, param_len);
+
+	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
+	
+	memcpy(rv, rt_pkt + sizeof(int), MAX_PATHNAME);
+	return rv;
 }
 
-// Hint: does this func really need to be an RPC?
+// this func actually doesn't need to be an RPC
 void freedirtree(struct dirtreenode* dt) {
 	fprintf(stderr, "mylib: freedirtree called\n");
-	contact2server_local("freedirtree");
-	return orig_freedirtree(dt);
+	// just free it locally
+	return orig_freedirtree(dt); // may need to write a free() by yourself
 }
 
 // This function is automatically called when program is started

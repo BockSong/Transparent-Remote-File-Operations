@@ -227,12 +227,25 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		}
 		// getdirtree
 		case 10: {
+			// TODO: need a special way to unpack
+			struct dirtreenode *rv = (char *)malloc(MAX_PATHNAME);
+			char *pathname = (char *)malloc(MAX_PATHNAME);
+
+			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
+			rv = getdirtree(pathname);
+
+			fprintf(stderr, "--[getdirtree]\n");
+			fprintf(stderr, "pathname: %s\n", pathname);
+
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), rv, MAX_PATHNAME);
+			*msg_len = sizeof(int) + MAX_PATHNAME;
+
+			// no longer the tree at server, free it at once
+			freedirtree(rv);
 			break;
 		}
-		// freedirtree
-		case 11: {
-			break;
-		}
+		// freedirtree: nothing to do for rpc
 		default:
 			fprintf(stderr, "Default\n");
 			char *msg = "Default msg from server";
