@@ -344,13 +344,35 @@ int unlink(const char *pathname) {
 	return rv;
 }
 
+// TODO: do FD transformation?
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
-	int sockfd;
+	int sockfd, param_len, opcode;
+	int rv;
+	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
-	fprintf(stderr, "mylib: getdirentries called from %d\n", fd);
+	fprintf(stderr, "mylib: getdirentries called from %d, nbytes: %d\n", fd, nbytes);
 	sockfd = connect2server();
-	contact2server_local(sockfd, "getdirentries");
-	return orig_getdirentries(fd, buf, nbytes, basep);
+
+	// param packing
+	param_len = 2 * sizeof(int) + sizeof(long);
+	param = malloc(param_len);
+	memcpy(param, &fd, sizeof(int));
+	memcpy(param + sizeof(int), &nbytes, sizeof(int));
+	memcpy(param + 2 * sizeof(int), basep, sizeof(long));
+	
+	// pkt packing
+	opcode = 9;
+	pkt = malloc(sizeof(int) + param_len);
+	memcpy(pkt, &opcode, sizeof(int));
+	memcpy(pkt + sizeof(int), param, param_len);
+
+	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
+	
+	// pkt unpacking
+	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+	memcpy(buf, rt_pkt + 2 * sizeof(int), nbytes);
+	fprintf(stderr, "getdirentries: read called ended, buf: %s\n", (char *)buf);
+	return rv;
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {

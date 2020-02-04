@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -78,7 +79,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		case 4: {
 			int fildes;
 			size_t rv, nbyte;
-			char *r_buf = (char *)malloc(MAXMSGLEN);
+			char *r_buf = (char *)malloc(MAXMSGLEN); // TODO: this should be nbyte?
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
@@ -174,6 +175,23 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		}
 		// getdirentries
 		case 9: {
+			int fd, rv, nbytes;
+			long *basep = (long *)malloc(sizeof(long));
+			char *g_buf = (char *)malloc(MAXMSGLEN);
+
+			memcpy(&fd, buf + sizeof(int), sizeof(int));
+			memcpy(&nbytes, buf + 2 * sizeof(int), sizeof(int));
+			memcpy(basep, buf + 3 * sizeof(int), sizeof(long));
+			rv = getdirentries(fd, g_buf, nbytes, basep);
+
+			fprintf(stderr, "--[getdirentries]:\n");
+			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fd, nbytes, g_buf);
+			fprintf(stderr, "rv: %d\n", (int)rv);
+
+			memcpy(rt_msg, &errno, sizeof(int));
+			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
+			memcpy(rt_msg + 2 * sizeof(int), g_buf, nbytes);
+			*msg_len = 2 * sizeof(int) + nbytes;
 			break;
 		}
 		// getdirtree
