@@ -148,7 +148,6 @@ int open(const char *pathname, int flags, ...) {
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
 	return rv;
 }
 
@@ -173,7 +172,6 @@ int close(int fildes) {
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
 	return rv;
 }
 
@@ -202,11 +200,10 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
 	return rv;
 }
 
-// TODO: need to add sth with I/O redirection; RETURN AND MEMSET BUF??
+// TODO: do FD transformation
 ssize_t read(int fildes, void *buf, size_t nbyte) {
 	int sockfd, param_len, opcode;
 	ssize_t rv;
@@ -230,15 +227,16 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
+	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-	// Add memset buf here
-
+	memcpy(buf, rt_pkt + 2 * sizeof(int), nbyte);
+	fprintf(stderr, "mylib: read called ended, buf: %s\n", (char *)buf);
 	return rv;
 }
 
-// TODO: need to add sth with I/O redirection?
+// TODO: do FD transformation
 off_t lseek(int fildes, off_t offset, int whence) {
-	int sockfd, err_no, param_len, opcode;
+	int sockfd, param_len, opcode;
 	off_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
@@ -260,14 +258,14 @@ off_t lseek(int fildes, off_t offset, int whence) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
+	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
 	return rv;
 }
 
-// TODO: RETURN AND MEMSET BUF
+// TODO: do FD transformation?
 int stat(const char *pathname, struct stat *buf) {
-	int sockfd, err_no, param_len, opcode, rv;
+	int sockfd, param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
@@ -287,14 +285,15 @@ int stat(const char *pathname, struct stat *buf) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
+	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
+	memcpy(buf, rt_pkt + 2 * sizeof(int), sizeof(struct stat));
 	return rv;
 }
 
-// TODO: RETURN AND MEMSET BUF
+// TODO: do FD transformation?
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
-	int sockfd, err_no, param_len, opcode, rv;
+	int sockfd, param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
@@ -315,13 +314,14 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
+	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
+	memcpy(stat_buf, rt_pkt + 2 * sizeof(int), sizeof(struct stat));
 	return rv;
 }
 
 int unlink(const char *pathname) {
-	int sockfd, err_no, param_len, opcode, rv;
+	int sockfd, param_len, opcode, rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
@@ -341,7 +341,6 @@ int unlink(const char *pathname) {
 	contact2server(sockfd, pkt, sizeof(int) + param_len, rt_pkt);
 	
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
-
 	return rv;
 }
 

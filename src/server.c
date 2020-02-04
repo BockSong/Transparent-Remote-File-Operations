@@ -91,7 +91,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = sizeof(int) + sizeof(size_t);
+			memcpy(rt_msg + 2 * sizeof(int), r_buf, nbyte);
+			*msg_len = sizeof(int) + sizeof(size_t) + nbyte;
 			break;
 		}
 		// lseek
@@ -129,7 +130,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = 2 * sizeof(int);
+			memcpy(rt_msg + 2 * sizeof(int), s_buf, sizeof(struct stat));
+			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
 			break;
 		}
 		// __xstat
@@ -149,7 +151,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = 2 * sizeof(int);
+			memcpy(rt_msg + 2 * sizeof(int), s_buf, sizeof(struct stat));
+			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
 			break;
 		}
 		// unlink
