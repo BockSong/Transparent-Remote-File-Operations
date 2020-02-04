@@ -213,11 +213,10 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 	sockfd = connect2server();
 
 	// param packing
-	param_len = sizeof(int) + sizeof(size_t) + nbyte;
+	param_len = sizeof(int) + sizeof(size_t);
 	param = malloc(param_len);
 	memcpy(param, &fildes, sizeof(int));
 	memcpy(param + sizeof(int), &nbyte, sizeof(size_t));
-	memcpy(param + sizeof(int) + sizeof(size_t), buf, nbyte);
 	
 	// pkt packing
 	opcode = 4;
@@ -272,10 +271,9 @@ int stat(const char *pathname, struct stat *buf) {
 	sockfd = connect2server();
 
 	// param packing
-	param_len = MAX_PATHNAME + sizeof(struct stat);
+	param_len = MAX_PATHNAME;
 	param = malloc(param_len);
-    memcpy(param, buf, sizeof(struct stat));
-	memcpy(param + sizeof(struct stat), pathname, MAX_PATHNAME);
+    memcpy(param, pathname, MAX_PATHNAME);
 
 	// pkt packing
 	opcode = 6;
@@ -300,11 +298,10 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	sockfd = connect2server();
 
 	// param packing
-	param_len = sizeof(int) + MAX_PATHNAME + sizeof(struct stat);
+	param_len = sizeof(int) + MAX_PATHNAME;
 	param = malloc(param_len);
 	memcpy(param, &ver, sizeof(int));
-    memcpy(param + sizeof(int), stat_buf, sizeof(struct stat));
-	memcpy(param + sizeof(int) + sizeof(struct stat), pathname, MAX_PATHNAME);
+	memcpy(param + sizeof(int), pathname, MAX_PATHNAME);
 
 	// pkt packing
 	opcode = 7;

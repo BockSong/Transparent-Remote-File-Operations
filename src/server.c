@@ -79,13 +79,13 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 		case 4: {
 			int fildes;
 			size_t rv, nbyte;
-			char *r_buf = (char *)malloc(MAXMSGLEN); // TODO: this should be nbyte?
+			char *r_buf;
 
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
-			memcpy(r_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
-			rv = read(fildes, r_buf, nbyte);
+			r_buf = (char *)malloc(nbyte);
 
+			rv = read(fildes, r_buf, nbyte);
 			fprintf(stderr, "--[READ]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
@@ -121,10 +121,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			struct stat *s_buf = (struct stat *)malloc(sizeof(struct stat));
 			char *pathname = (char *)malloc(MAX_PATHNAME);
 
-			memcpy(s_buf, buf + sizeof(int), sizeof(struct stat));
-			memcpy(pathname, buf + sizeof(int) + sizeof(struct stat), MAX_PATHNAME);
+			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
 			rv = stat(pathname, s_buf);
-
 			fprintf(stderr, "--[STAT]\n");
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
@@ -142,8 +140,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len) {
 			char *pathname = (char *)malloc(MAX_PATHNAME);
 
 			memcpy(&ver, buf + sizeof(int), sizeof(int));
-			memcpy(s_buf, buf + 2 * sizeof(int), sizeof(struct stat));
-			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(struct stat), MAX_PATHNAME);
+			memcpy(pathname, buf + 2 * sizeof(int), MAX_PATHNAME);
 			rv = __xstat(ver, pathname, s_buf);
 
 			fprintf(stderr, "--[__XSTAT]\n");
