@@ -13,8 +13,8 @@
 #include <errno.h>
 #include <dirtree.h>
 
-#define MAXMSGLEN 4096
-#define MAX_PATHNAME 512
+#define MAXMSGLEN 8192 // this may handle author2 but not fast1, fast2
+#define MAX_PATHNAME 1024  // currently only used in tree (un)packing
 #define FD_OFFSET 2000
 
 int fd_table[FD_OFFSET]; // seems that we don't need this
@@ -39,13 +39,16 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 	switch (opcode) {
 		// open
 		case 1: {
-			int rv, flags;
+			int rv, flags, str_len;
 			mode_t m;
-			char *pathname = (char *)malloc(MAX_PATHNAME);
+			char *pathname;
 
 			memcpy(&flags, buf + sizeof(int), sizeof(int));
 			memcpy(&m, buf + 2 * sizeof(int), sizeof(mode_t));
-			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
+			memcpy(&str_len, buf + 2 * sizeof(int) + sizeof(mode_t), sizeof(int));
+			pathname = (char *)malloc(str_len);
+			memcpy(pathname, buf + 3 * sizeof(int) + sizeof(mode_t), str_len);
+
 			rv = open(pathname, flags, m);
 			if (rv != -1) {
 				fd_table[rv] = sessfd;
@@ -162,11 +165,13 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		}
 		// stat
 		case 6: {
-			int rv;
+			int rv, str_len;
 			struct stat *s_buf = (struct stat *)malloc(sizeof(struct stat));
-			char *pathname = (char *)malloc(MAX_PATHNAME);
+			char *pathname;
 
-			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
+			memcpy(&str_len, buf + sizeof(int), sizeof(int));
+			pathname = (char *)malloc(str_len);
+			memcpy(pathname, buf + 2 * sizeof(int), str_len);
 			rv = stat(pathname, s_buf);
 			fprintf(stderr, "--[STAT]\n");
 			fprintf(stderr, "pathname: %s\n", pathname);
@@ -180,12 +185,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		}
 		// __xstat
 		case 7: {
-			int rv, ver;
+			int rv, ver, str_len;
 			struct stat *s_buf = (struct stat *)malloc(sizeof(struct stat));
-			char *pathname = (char *)malloc(MAX_PATHNAME);
+			char *pathname;
 
 			memcpy(&ver, buf + sizeof(int), sizeof(int));
-			memcpy(pathname, buf + 2 * sizeof(int), MAX_PATHNAME);
+			memcpy(&str_len, buf + 2 * sizeof(int), sizeof(int));
+			pathname = (char *)malloc(str_len);
+			memcpy(pathname, buf + 3 * sizeof(int), str_len);
 			rv = __xstat(ver, pathname, s_buf);
 
 			fprintf(stderr, "--[__XSTAT]\n");
@@ -200,10 +207,12 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		}
 		// unlink
 		case 8: {
-			int rv;
-			char *pathname = (char *)malloc(MAX_PATHNAME);
+			int rv, str_len;
+			char *pathname;
 
-			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
+			memcpy(&str_len, buf + sizeof(int), sizeof(int));
+			pathname = (char *)malloc(str_len);
+			memcpy(pathname, buf + 2 * sizeof(int), str_len);
 			rv = unlink(pathname);
 
 			fprintf(stderr, "--[UNLINK]\n");
@@ -244,12 +253,14 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		}
 		// getdirtree
 		case 10: {
-			int rt_length = 0;
+			int rt_length = 0, str_len;
 			struct dirtreenode *rv;
-			char *pathname = (char *)malloc(MAX_PATHNAME), *rv_send = NULL;
+			char *pathname, *rv_send = NULL;
 
 			fprintf(stderr, "--[getdirtree]\n");
-			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
+			memcpy(&str_len, buf + sizeof(int), sizeof(int));
+			pathname = (char *)malloc(str_len);
+			memcpy(pathname, buf + 2 * sizeof(int), str_len);
 			rv = getdirtree(pathname);
 			rt_length = pack_tree(rv, rv_send);
 
@@ -292,7 +303,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	port = 15226; // For local test
+	//port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket

@@ -18,8 +18,8 @@
 #include <errno.h>
 #include <dirtree.h>
 
-#define MAXMSGLEN 4096
-#define MAX_PATHNAME 512
+#define MAXMSGLEN 8192
+#define MAX_PATHNAME 1024
 #define FD_OFFSET 2000
 
 int sockfd;
@@ -83,7 +83,7 @@ void connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15226; // For local test
+	//port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -121,7 +121,7 @@ void contact2server(char* pkt, int pkt_len, char* buf) {
 
 // Replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
-	int rv, param_len, opcode;
+	int rv, param_len, opcode, str_len = (int)strlen(pathname);
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	mode_t m=0;
 	if (flags & O_CREAT) {
@@ -133,11 +133,12 @@ int open(const char *pathname, int flags, ...) {
 	fprintf(stderr, "mylib: open called for flags: %d, mode: %d, path: %s\n", flags, (int)m, pathname);
 
 	// param packing
-	param_len = sizeof(int) + sizeof(mode_t) + MAX_PATHNAME;
+	param_len = 2 * sizeof(int) + sizeof(mode_t) + str_len;
 	param = malloc(param_len);
     memcpy(param, &flags, sizeof(int));
 	memcpy(param + sizeof(int), &m, sizeof(mode_t));
-	memcpy(param + sizeof(int) + sizeof(mode_t), pathname, MAX_PATHNAME);
+	memcpy(param + sizeof(int) + sizeof(mode_t), &str_len, sizeof(int));
+	memcpy(param + 2 * sizeof(int) + sizeof(mode_t), pathname, str_len);
 
 	// pkt packing
 	opcode = 1;
@@ -153,11 +154,15 @@ int open(const char *pathname, int flags, ...) {
 }
 
 int close(int fildes) {
+	if (fildes < FD_OFFSET) {
+		fprintf(stderr, "mylib: local close called from %d\n", fildes);
+		return orig_close(fildes);
+	}
 	int rv, param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: close called from %d\n", fd);
+	fprintf(stderr, "mylib: rpc close called from %d\n", fd);
 
 	// param packing
 	param_len = sizeof(int);
@@ -177,12 +182,16 @@ int close(int fildes) {
 }
 
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
+	if (fildes < FD_OFFSET) {
+		fprintf(stderr, "mylib: local write called from %d\n", fildes);
+		return orig_write(fildes, buf, nbyte);
+	}
 	int param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: write called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
+	fprintf(stderr, "mylib: rpc write called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t) + nbyte;
@@ -204,12 +213,16 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 }
 
 ssize_t read(int fildes, void *buf, size_t nbyte) {
+	if (fildes < FD_OFFSET) {
+		fprintf(stderr, "mylib: local read called from %d\n", fildes);
+		return orig_read(fildes, buf, nbyte);
+	}
 	int param_len, opcode;
 	ssize_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: read called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
+	fprintf(stderr, "mylib: rpc read called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t);
@@ -233,12 +246,16 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 }
 
 off_t lseek(int fildes, off_t offset, int whence) {
+	if (fildes < FD_OFFSET) {
+		fprintf(stderr, "mylib: local lseek called from %d\n", fildes);
+		return orig_lseek(fildes, offset, whence);
+	}
 	int param_len, opcode;
 	off_t rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: lseek called from %d\n", fd);
+	fprintf(stderr, "mylib: rpc lseek called from %d\n", fd);
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(off_t);
@@ -261,15 +278,16 @@ off_t lseek(int fildes, off_t offset, int whence) {
 }
 
 int stat(const char *pathname, struct stat *buf) {
-	int param_len, opcode, rv;
+	int param_len, opcode, rv, str_len = (int)strlen(pathname);
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
 
 	// param packing
-	param_len = MAX_PATHNAME;
+	param_len = sizeof(int) + str_len;
 	param = malloc(param_len);
-    memcpy(param, pathname, MAX_PATHNAME);
+    memcpy(param, &str_len, sizeof(int));
+    memcpy(param + sizeof(int), pathname, str_len);
 
 	// pkt packing
 	opcode = 6;
@@ -286,16 +304,17 @@ int stat(const char *pathname, struct stat *buf) {
 }
 
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
-	int param_len, opcode, rv;
+	int param_len, opcode, rv, str_len = (int)strlen(pathname);
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
 
 	// param packing
-	param_len = sizeof(int) + MAX_PATHNAME;
+	param_len = 2 * sizeof(int) + str_len;
 	param = malloc(param_len);
 	memcpy(param, &ver, sizeof(int));
-	memcpy(param + sizeof(int), pathname, MAX_PATHNAME);
+	memcpy(param + sizeof(int), &str_len, sizeof(int));
+	memcpy(param + 2 * sizeof(int), pathname, str_len);
 
 	// pkt packing
 	opcode = 7;
@@ -312,15 +331,16 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 }
 
 int unlink(const char *pathname) {
-	int param_len, opcode, rv;
+	int param_len, opcode, rv, str_len = (int)strlen(pathname);
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 
 	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
 
 	// param packing
-	param_len = MAX_PATHNAME;
+	param_len = sizeof(int) + str_len;
 	param = malloc(param_len);
-    memcpy(param, pathname, MAX_PATHNAME);
+    memcpy(param, &str_len, sizeof(int));
+    memcpy(param + sizeof(int), pathname, str_len);
 
 	// pkt packing
 	opcode = 8;
@@ -335,12 +355,16 @@ int unlink(const char *pathname) {
 }
 
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
+	if (fd < FD_OFFSET) {
+		fprintf(stderr, "mylib: local getdirentries called from %d\n", fd);
+		return orig_getdirentries(fd, buf, nbytes, basep);
+	}
 	int param_len, opcode;
 	int rv;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	int fid = fd_client2server(fd);
 
-	fprintf(stderr, "mylib: getdirentries called from %d, nbytes: %d\n", fid, nbytes);
+	fprintf(stderr, "mylib: rpc getdirentries called from %d, nbytes: %d\n", fid, nbytes);
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(long);
@@ -364,16 +388,17 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
-	int param_len, opcode, length, rt_length;
+	int param_len, opcode, length, rt_length, str_len = (int)strlen(pathname);
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
 	struct dirtreenode* rv = (struct dirtreenode *)malloc(sizeof(struct dirtreenode));
 
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 
 	// param packing
-	param_len = MAX_PATHNAME;
+	param_len = sizeof(int) + str_len;
 	param = malloc(param_len);
-    memcpy(param, pathname, MAX_PATHNAME);
+    memcpy(param, &str_len, sizeof(int));
+    memcpy(param + sizeof(int), pathname, str_len);
 
 	// pkt packing
 	opcode = 10;
