@@ -19,7 +19,7 @@
 #include <dirtree.h>
 
 #define MAXMSGLEN 4096
-#define MAX_PATHNAME 256
+#define MAX_PATHNAME 512
 #define FD_OFFSET 2000
 
 int sockfd;
@@ -41,16 +41,22 @@ int fd_server2client(int fd) { return fd + FD_OFFSET; }
 int fd_client2server(int fd) { return fd - FD_OFFSET; }
 
 int unpack_tree(char *sub_pkt, struct dirtreenode* sub) {
-	int sub_length = MAX_PATHNAME + sizeof(int), i;
-	sub = malloc(sub_length);
+	fprintf(stderr, "Starting unpacking tree ...\n");
+	int i, sub_length = sizeof(struct dirtreenode) + MAX_PATHNAME;
+
+	sub->name = (char *)malloc(MAX_PATHNAME);
 	memcpy(sub->name, sub_pkt, MAX_PATHNAME);
 	memcpy(&(sub->num_subdirs), sub_pkt + MAX_PATHNAME, sizeof(int));
+	fprintf(stderr, "Get subdirs: %d, name: %s\n", sub->num_subdirs, sub->name);
+
 	if (sub->num_subdirs > 0) {
-		sub->subdirs = (struct dirtreenode **)malloc(sizeof(struct dirtreenode *) * sub->num_subdirs);
+		sub->subdirs = (struct dirtreenode **)malloc(sizeof(struct dirtreenode) * sub->num_subdirs);
 		for (i = 0; i < sub->num_subdirs; i++) {
+		fprintf(stderr, "Get in subdirs: %d, length: %d\n", i, sub_length);
 			sub_length += unpack_tree(sub_pkt + sub_length, sub->subdirs[i]);
 		}
 	}
+	fprintf(stderr, "Safely ended, length: %d\n", sub_length);
 	return sub_length;
 }
 
@@ -77,7 +83,7 @@ void connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15227; // For local test
+	port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -358,9 +364,9 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
-	int param_len, opcode;
+	int param_len, opcode, length, rt_length;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
-	struct dirtreenode* rv = NULL;
+	struct dirtreenode* rv = (struct dirtreenode *)malloc(sizeof(struct dirtreenode));
 
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 
@@ -376,8 +382,11 @@ struct dirtreenode* getdirtree(const char *pathname) {
 	memcpy(pkt + sizeof(int), param, param_len);
 
 	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	unpack_tree(rt_pkt + sizeof(int), rv);
 
+	memcpy(&rt_length, rt_pkt + sizeof(int), sizeof(int));
+	fprintf(stderr, "mylib: getdirtree called ended, rt_length: %d\n", rt_length);
+	length = unpack_tree(rt_pkt + 2 * sizeof(int), rv);
+	fprintf(stderr, "length: %d\n", length);
 	return rv;
 }
 

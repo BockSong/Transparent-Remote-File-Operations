@@ -20,13 +20,16 @@
 int fd_table[FD_OFFSET]; // seems that we don't need this
 
 int pack_tree(struct dirtreenode *sub, char *sub_send) {
+	fprintf(stderr, "Starting packing tree ... \n");
 	int sub_length = MAX_PATHNAME + sizeof(int), i;
 	sub_send = (char *)malloc(sub_length);
 	memcpy(sub_send, sub->name, MAX_PATHNAME);
 	memcpy(sub_send + MAX_PATHNAME, &(sub->num_subdirs), sizeof(int));
 	for (i = 0; i < sub->num_subdirs; i++) {
+		fprintf(stderr, "Get in subdirs: %d, length: %d\n", i, sub_length);
 		sub_length += pack_tree(sub->subdirs[i], sub_send + sub_length);
 	}
+	fprintf(stderr, "Safely ended, length: %d\n", sub_length);
 	return sub_length;
 }
 
@@ -44,9 +47,9 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(&m, buf + 2 * sizeof(int), sizeof(mode_t));
 			memcpy(pathname, buf + 2 * sizeof(int) + sizeof(mode_t), MAX_PATHNAME);
 			rv = open(pathname, flags, m);
-			if (fd_table[rv] != -1)
-				fprintf(stderr, "!!! error: this fd is not available !!!\n");
-			fd_table[rv] = sessfd;
+			if (rv != -1) {
+				fd_table[rv] = sessfd;
+			}
 
 			fprintf(stderr, "--[OPEN]\n");
 			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
@@ -63,8 +66,10 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
 
 			// fd access control for multi-client security
-			if (fd_table[fildes] != sessfd)
+			if (fd_table[fildes] != sessfd) {
+				fprintf(stderr, "Attempt to use unavailable fd !\n");
 				rv = -1;
+			}
 			else {
 				rv = close(fildes);
 				fd_table[fildes] = -1;
@@ -244,18 +249,20 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			char *pathname = (char *)malloc(MAX_PATHNAME), *rv_send = NULL;
 
 			fprintf(stderr, "--[getdirtree]\n");
-			fprintf(stderr, "pathname: %s\n", pathname);
-
 			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
 			rv = getdirtree(pathname);
 			rt_length = pack_tree(rv, rv_send);
 
+			fprintf(stderr, "--------------\n");
+			fprintf(stderr, "length: %d, subdirs: %d, pathname: %s\n", rt_length, rv->num_subdirs, pathname);
+
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rt_length, sizeof(int));
-			memcpy(rt_msg + 2 * sizeof(int), rv, rt_length);
-			*msg_len = sizeof(int) + MAX_PATHNAME;
+			// TODO: So weird bug here. send rv_send will make previous rt_length become 0 ...
+			memcpy(rt_msg + 2 * sizeof(int), rv_send, rt_length);
+			*msg_len = 2 * sizeof(int) + rt_length;
 
-			// no longer the tree at server, free it at once
+			// no longer need the tree at server, free it at once
 			freedirtree(rv);
 			break;
 		}
@@ -285,7 +292,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	port = 15227; // For local test
+	port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
