@@ -11,12 +11,24 @@
 #include <unistd.h>
 #include <err.h>
 #include <errno.h>
+#include <dirtree.h>
 
 #define MAXMSGLEN 4096
 #define MAX_PATHNAME 512
 #define FD_OFFSET 2000
 
-int fd_table[FD_OFFSET];
+int fd_table[FD_OFFSET]; // seems that we don't need this
+
+int pack_tree(struct dirtreenode *sub, char *sub_send) {
+	int sub_length = MAX_PATHNAME + sizeof(int), i;
+	sub_send = (char *)malloc(sub_length);
+	memcpy(sub_send, sub->name, MAX_PATHNAME);
+	memcpy(sub_send + MAX_PATHNAME, &(sub->num_subdirs), sizeof(int));
+	for (i = 0; i < sub->num_subdirs; i++) {
+		sub_length += pack_tree(sub->subdirs[i], sub_send + sub_length);
+	}
+	return sub_length;
+}
 
 void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 	int opcode;
@@ -227,18 +239,20 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		}
 		// getdirtree
 		case 10: {
-			// TODO: need a special way to unpack
-			struct dirtreenode *rv = (char *)malloc(MAX_PATHNAME);
-			char *pathname = (char *)malloc(MAX_PATHNAME);
-
-			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
-			rv = getdirtree(pathname);
+			int rt_length = 0;
+			struct dirtreenode *rv;
+			char *pathname = (char *)malloc(MAX_PATHNAME), *rv_send = NULL;
 
 			fprintf(stderr, "--[getdirtree]\n");
 			fprintf(stderr, "pathname: %s\n", pathname);
 
+			memcpy(pathname, buf + sizeof(int), MAX_PATHNAME);
+			rv = getdirtree(pathname);
+			rt_length = pack_tree(rv, rv_send);
+
 			memcpy(rt_msg, &errno, sizeof(int));
-			memcpy(rt_msg + sizeof(int), rv, MAX_PATHNAME);
+			memcpy(rt_msg + sizeof(int), &rt_length, sizeof(int));
+			memcpy(rt_msg + 2 * sizeof(int), rv, rt_length);
 			*msg_len = sizeof(int) + MAX_PATHNAME;
 
 			// no longer the tree at server, free it at once

@@ -16,6 +16,7 @@
 #include <string.h>
 #include <err.h>
 #include <errno.h>
+#include <dirtree.h>
 
 #define MAXMSGLEN 4096
 #define MAX_PATHNAME 256
@@ -36,8 +37,22 @@ int (*orig_getdirentries)(int fd, char *buf, int nbytes, long *basep);
 struct dirtreenode* (*orig_getdirtree)(const char *pathname);
 void (*orig_freedirtree)(struct dirtreenode* dt);
 
-int fd_server2client(int fd) { return fd + 1024; }
-int fd_client2server(int fd) { return fd - 1024; }
+int fd_server2client(int fd) { return fd + FD_OFFSET; }
+int fd_client2server(int fd) { return fd - FD_OFFSET; }
+
+int unpack_tree(char *sub_pkt, struct dirtreenode* sub) {
+	int sub_length = MAX_PATHNAME + sizeof(int), i;
+	sub = malloc(sub_length);
+	memcpy(sub->name, sub_pkt, MAX_PATHNAME);
+	memcpy(&(sub->num_subdirs), sub_pkt + MAX_PATHNAME, sizeof(int));
+	if (sub->num_subdirs > 0) {
+		sub->subdirs = (struct dirtreenode **)malloc(sizeof(struct dirtreenode *) * sub->num_subdirs);
+		for (i = 0; i < sub->num_subdirs; i++) {
+			sub_length += unpack_tree(sub_pkt + sub_length, sub->subdirs[i]);
+		}
+	}
+	return sub_length;
+}
 
 void connect2server() {
 	int rv;
@@ -345,8 +360,7 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 struct dirtreenode* getdirtree(const char *pathname) {
 	int param_len, opcode;
 	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
-	// TODO: this is an unrecoverable transmission
-	struct dirteenode* rv = (char *)malloc(MAX_PATHNAME);
+	struct dirtreenode* rv = NULL;
 
 	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
 
@@ -362,8 +376,8 @@ struct dirtreenode* getdirtree(const char *pathname) {
 	memcpy(pkt + sizeof(int), param, param_len);
 
 	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
-	memcpy(rv, rt_pkt + sizeof(int), MAX_PATHNAME);
+	unpack_tree(rt_pkt + sizeof(int), rv);
+
 	return rv;
 }
 
@@ -371,7 +385,7 @@ struct dirtreenode* getdirtree(const char *pathname) {
 void freedirtree(struct dirtreenode* dt) {
 	fprintf(stderr, "mylib: freedirtree called\n");
 	// just free it locally
-	return orig_freedirtree(dt); // may need to write a free() by yourself
+	orig_freedirtree(dt); // may need to write a free() by yourself
 }
 
 // This function is automatically called when program is started
