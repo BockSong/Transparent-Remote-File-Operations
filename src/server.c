@@ -13,11 +13,9 @@
 #include <errno.h>
 #include <dirtree.h>
 
-#define MAXMSGLEN 8192 // this may handle author2 but not fast1, fast2
+#define MAXMSGLEN 8192
 #define MAX_PATHNAME 1024  // currently only used in tree (un)packing
 #define FD_OFFSET 2000
-
-int fd_table[FD_OFFSET]; // seems that we don't need this
 
 int pack_tree(struct dirtreenode *sub, char *sub_send) {
 	fprintf(stderr, "Starting packing tree ... \n");
@@ -50,9 +48,6 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(pathname, buf + 3 * sizeof(int) + sizeof(mode_t), str_len);
 
 			rv = open(pathname, flags, m);
-			if (rv != -1) {
-				fd_table[rv] = sessfd;
-			}
 
 			fprintf(stderr, "--[OPEN]\n");
 			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
@@ -67,16 +62,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		case 2: {
 			int rv, fildes;
 			memcpy(&fildes, buf + sizeof(int), sizeof(int));
-
-			// fd access control for multi-client security
-			if (fd_table[fildes] != sessfd) {
-				fprintf(stderr, "Attempt to use unavailable fd !\n");
-				rv = -1;
-			}
-			else {
-				rv = close(fildes);
-				fd_table[fildes] = -1;
-			}
+			rv = close(fildes);
 
 			fprintf(stderr, "--[CLOSE]:\n");
 			fprintf(stderr, "fildes: %d\n", fildes);
@@ -98,11 +84,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			w_buf = (char *)malloc(nbyte);
 			memcpy(w_buf, buf + 2 * sizeof(int) + sizeof(size_t), nbyte);
 
-			// fd access control for multi-client security
-			if (fd_table[fildes] != sessfd)
-				rv = -1;
-			else
-				rv = write(fildes, w_buf, nbyte);
+			rv = write(fildes, w_buf, nbyte);
 
 			fprintf(stderr, "--[WRITE]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
@@ -123,11 +105,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(&nbyte, buf + 2 * sizeof(int), sizeof(size_t));
 			r_buf = (char *)malloc(nbyte);
 
-			// fd access control for multi-client security
-			if (fd_table[fildes] != sessfd)
-				rv = -1;
-			else
-				rv = read(fildes, r_buf, nbyte);
+			rv = read(fildes, r_buf, nbyte);
 
 			fprintf(stderr, "--[READ]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
@@ -148,11 +126,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(&offset, buf + 2 * sizeof(int), sizeof(off_t));
 			memcpy(&whence, buf + 2 * sizeof(int) + sizeof(off_t), sizeof(int));
 
-			// fd access control for multi-client security
-			if (fd_table[fildes] != sessfd)
-				rv = -1;
-			else
-				rv = lseek(fildes, offset, whence);
+			rv = lseek(fildes, offset, whence);
 
 			fprintf(stderr, "--[LSEEK]:\n");
 			fprintf(stderr, "fildes: %d, offset: %d, whence: %d\n", fildes, (int)offset, whence);
@@ -235,11 +209,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(basep, buf + 3 * sizeof(int), sizeof(long));
 			g_buf = (char *)malloc(nbytes);
 
-			// fd access control for multi-client security
-			if (fd_table[fd] != sessfd)
-				rv = -1;
-			else
-				rv = getdirentries(fd, g_buf, nbytes, basep);
+			rv = getdirentries(fd, g_buf, nbytes, basep);
 
 			fprintf(stderr, "--[getdirentries]:\n");
 			fprintf(stderr, "fildes: %d, nbyte: %d\n", fd, nbytes);
@@ -270,6 +240,7 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rt_length, sizeof(int));
 			// TODO: So weird bug here. send rv_send will make previous rt_length become 0 ...
+			// Seems to be overlap here for the two pointers
 			memcpy(rt_msg + 2 * sizeof(int), rv_send, rt_length);
 			*msg_len = 2 * sizeof(int) + rt_length;
 
@@ -296,14 +267,11 @@ int main(int argc, char**argv) {
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
 
-	// -1 denotes unused; non-negative means the belonging sessfd.
-	memset(fd_table, -1, FD_OFFSET);
-	
 	// Get environment variable indicating the port of the server
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	//port = 15226; // For local test
+	port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
