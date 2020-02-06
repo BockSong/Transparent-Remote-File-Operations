@@ -16,6 +16,8 @@
 #define MAX_PATHNAME 1024  // currently only left in tree (un)packing
 #define FD_OFFSET 2000
 
+char ack[9] = "received";
+
 int pack_tree(struct dirtreenode *sub, char *sub_send) {
 	fprintf(stderr, "Starting packing tree ... \n");
 	int sub_length = MAX_PATHNAME + sizeof(int), i;
@@ -273,6 +275,9 @@ void execute_request(char *buf, int sessfd, int pid) {
 	rv = send(sessfd, (char *)&msg_len, sizeof(int), 0);
 	if (rv < 0) err(1,0);	// in case something went wrong
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = recv(sessfd, ack, strlen(ack) + 1, 0);
+	if (rv < 0) err(1,0);
+	fprintf(stderr, "ack recved.	");
 
 	// send reply
 	fprintf(stderr, "server %d reply to client\n", pid);
@@ -295,7 +300,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	//port = 15226; // For local test
+	port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -330,12 +335,14 @@ int main(int argc, char**argv) {
 			close(sockfd);  // child does not need this
 
 			// get messages and send replies to this client, until it goes away
-			while ( (rv=recv(sessfd, (int *)&pkt_len, sizeof(int), 0)) > 0) {
-				fprintf(stderr, "pkt_len: %d	", pkt_len);
+			while ( (rv=recv(sessfd, &pkt_len, sizeof(int), 0)) > 0) {
+				fprintf(stderr, "\npkt_len: %d	", pkt_len);
+				rv = send(sessfd, ack, strlen(ack) + 1, 0);
+				if (rv<0) err(1,0);
 
 				sent = 0;
 				buf = (char *)malloc(pkt_len + 1);
-				while ( (rv = recv(sessfd, buf + sent, pkt_len, 0)) > 0) { // receive pkt_len bytes into buf
+				while ( (rv = recv(sessfd, buf + sent, pkt_len, MSG_WAITALL)) > 0) { // receive pkt_len bytes into buf
 					if (rv < 0) err(1,0);	// in case something went wrong
 					sent += rv;
 					if (sent >= pkt_len)

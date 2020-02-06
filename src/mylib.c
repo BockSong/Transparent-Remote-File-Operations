@@ -22,6 +22,7 @@
 #define FD_OFFSET 2000
 
 int sockfd;
+char ack[9] = "received";
 
 // The following line declares function pointers with the same prototype as the original functions.  
 int (*orig_open)(const char *pathname, int flags, ...);  // mode_t mode is needed when flags includes O_CREAT
@@ -82,7 +83,7 @@ void connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	//port = 15226; // For local test
+	port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -104,14 +105,17 @@ void send_pkt(char* pkt, int pkt_len) {
 
 	// first send the pkt length
 	rv = send(sockfd, &pkt_len, sizeof(int), 0);
-	if (rv < 0) err(1,0);	// in case something went wrong
+	if (rv < 0) err(1,0);
 	fprintf(stderr, "pkt_len: %d	", pkt_len);
+	rv = recv(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv < 0) err(1,0);
+	fprintf(stderr, "ack recved.	");
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
 	while (sent < pkt_len) {
 		rv = send(sockfd, pkt + sent, pkt_len - sent, 0);  // check the rv to make sure the completency
-		if (rv < 0) err(1,0);	// in case something went wrong
+		if (rv < 0) err(1,0);
 		sent += rv;
 	}
 }
@@ -119,14 +123,14 @@ void send_pkt(char* pkt, int pkt_len) {
 void recv_msg(char* buf, int msg_len) {
 	int rv, err_no, sent = 0;
 	// get packet back
-	while ( (rv = recv(sockfd, buf + sent, msg_len, 0)) > 0) { // receive msg_len bytes into buf
-		if (rv < 0) err(1,0);	// in case something went wrong
+	while ( (rv = recv(sockfd, buf + sent, msg_len, MSG_WAITALL)) > 0) { // receive msg_len bytes into buf
+		if (rv < 0) err(1,0);
 		sent += rv;
 		if (sent >= msg_len)
 			break;
 	}
 	buf[msg_len]=0;				// null terminate string to print
-	fprintf(stderr, "client receive messge from the server\n");
+	fprintf(stderr, "client receive messge from the server\n\n");
 	
 	// Set errno
 	memcpy(&err_no, buf, sizeof(int));
@@ -163,9 +167,11 @@ int open(const char *pathname, int flags, ...) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -200,9 +206,11 @@ int close(int fildes) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -239,9 +247,11 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -277,9 +287,11 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -319,9 +331,11 @@ off_t lseek(int fildes, off_t offset, int whence) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -352,9 +366,11 @@ int stat(const char *pathname, struct stat *buf) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -387,9 +403,11 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -421,9 +439,11 @@ int unlink(const char *pathname) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -459,9 +479,11 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	rv = recv(sockfd, &msg_len, sizeof(int), 0);
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
@@ -473,7 +495,7 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
-	int opcode, param_len, msg_len, length, rt_length, str_len = (int)strlen(pathname);
+	int opcode, param_len, msg_len, recv_rv, length, rt_length, str_len = (int)strlen(pathname);
 	char *pkt, *rt_pkt, *param;
 	struct dirtreenode* rv = (struct dirtreenode *)malloc(sizeof(struct dirtreenode));
 
@@ -494,9 +516,11 @@ struct dirtreenode* getdirtree(const char *pathname) {
 	send_pkt(pkt, sizeof(int) + param_len);
 
 	// receive the pkt length
-	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
-	if (rv<0) err(1,0);
+	recv_rv = recv(sockfd, &msg_len, sizeof(int), 0);
+	if (recv_rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
+	recv_rv = send(sockfd, ack, strlen(ack) + 1, 0);
+	if (recv_rv<0) err(1,0);
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
