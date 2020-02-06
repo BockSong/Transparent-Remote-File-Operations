@@ -30,8 +30,9 @@ int pack_tree(struct dirtreenode *sub, char *sub_send) {
 	return sub_length;
 }
 
-void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
-	int opcode;
+void execute_request(char *buf, int sessfd, int pid) {
+	int opcode, rv, sent = 0, msg_len;
+	char * rt_msg = 0;
 	memcpy(&opcode, buf, sizeof(int));
 	switch (opcode) {
 		// open
@@ -52,8 +53,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			*msg_len = 2 * sizeof(int);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			break;
@@ -68,8 +69,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d\n", fildes);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			*msg_len = 2 * sizeof(int);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			break;
@@ -91,8 +92,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			*msg_len = sizeof(int) + sizeof(size_t);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = sizeof(int) + sizeof(size_t);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			break;
@@ -113,8 +114,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			*msg_len = sizeof(int) + sizeof(size_t) + nbyte;
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = sizeof(int) + sizeof(size_t) + nbyte;
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), r_buf, nbyte);
@@ -135,8 +136,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, offset: %d, whence: %d\n", fildes, (int)offset, whence);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			*msg_len = sizeof(int) + sizeof(off_t);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = sizeof(int) + sizeof(off_t);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			break;
@@ -155,8 +156,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int) + sizeof(struct stat);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), s_buf, sizeof(struct stat));
@@ -178,8 +179,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "ver: %d, pathname: %s\n", ver, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int) + sizeof(struct stat);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), s_buf, sizeof(struct stat));
@@ -199,8 +200,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
-			*msg_len = 2 * sizeof(int);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			break;
@@ -222,8 +223,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, nbyte: %d\n", fd, nbytes);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
-			*msg_len = 2 * sizeof(int) + nbytes;
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int) + nbytes;
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), g_buf, nbytes);
@@ -245,8 +246,8 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "--------------\n");
 			fprintf(stderr, "length: %d, subdirs: %d, pathname: %s\n", rt_length, rv->num_subdirs, pathname);
 
-			*msg_len = 2 * sizeof(int) + rt_length;
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = 2 * sizeof(int) + rt_length;
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rt_length, sizeof(int));
 			// TODO: So weird bug here. send rv_send will make previous rt_length become 0 ...
@@ -262,19 +263,31 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "Default\n");
 			char *msg = "Default msg from server";
 
-			*msg_len = strlen(msg);
-			rt_msg = (char *)malloc(*msg_len);
+			msg_len = strlen(msg);
+			rt_msg = (char *)malloc(msg_len);
 			memcpy(rt_msg, msg, strlen(msg));
 			break;
+	}
+
+	// send the msg length
+	rv = send(sessfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv < 0) err(1,0);	// in case something went wrong
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	// send reply
+	fprintf(stderr, "server %d reply to client\n", pid);
+	while (sent < msg_len) {
+		rv = send(sessfd, rt_msg + sent, msg_len - sent, 0);  // always check the rv to make sure the completency
+		if (rv < 0) err(1,0);	// in case something went wrong
+		sent += rv;
 	}
 }
 
 int main(int argc, char**argv) {
-	char *msg = NULL;
-	char *buf, *int_buf = (char *)malloc(sizeof(int));
+	char *buf;
 	char *serverport;
 	unsigned short port;
-	int sockfd, sessfd, rv, msg_len, pid, sent, pkt_len = 0;
+	int sockfd, sessfd, rv, pid, sent, pkt_len = 0;
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
 
@@ -317,12 +330,11 @@ int main(int argc, char**argv) {
 			close(sockfd);  // child does not need this
 
 			// get messages and send replies to this client, until it goes away
-			while ( (rv=recv(sessfd, int_buf, sizeof(int), 0)) > 0) {
-				memcpy(&pkt_len, int_buf, sizeof(int));
+			while ( (rv=recv(sessfd, (int *)&pkt_len, sizeof(int), 0)) > 0) {
 				fprintf(stderr, "pkt_len: %d	", pkt_len);
 
 				sent = 0;
-				buf = (char *)malloc(pkt_len);
+				buf = (char *)malloc(pkt_len + 1);
 				while ( (rv = recv(sessfd, buf + sent, pkt_len, 0)) > 0) { // receive pkt_len bytes into buf
 					if (rv < 0) err(1,0);	// in case something went wrong
 					sent += rv;
@@ -334,24 +346,7 @@ int main(int argc, char**argv) {
 				fprintf(stderr, "server %d received msg: ", pid);
 				printf("%s\n", buf);  // print the received messege
 				
-				execute_request(buf, msg, &msg_len, sessfd);
-
-				// send the msg length
-				memcpy(int_buf, &msg_len, sizeof(int));
-				rv = send(sessfd, int_buf, sizeof(int), 0);
-				if (rv < 0) err(1,0);	// in case something went wrong
-				fprintf(stderr, "msg_len: %d	", msg_len);
-
-				// send reply
-				fprintf(stderr, "server %d reply to client\n", pid);
-				sent = 0;
-				while (sent < msg_len) {
-					rv = send(sessfd, msg + sent, msg_len - sent, 0);  // always check the rv to make sure the completency
-					if (rv < 0) err(1,0);	// in case something went wrong
-					sent += rv;
-				}
-				//send_rv = send(sessfd, msg, msg_len, 0);
-				//if (send_rv<0) err(1,0);
+				execute_request(buf, sessfd, pid);
 			}
 
 			// if received bytes < 0, either client closed connection, or error

@@ -99,48 +99,6 @@ void connect2server() {
 	if (rv<0) err(1,0);
 }
 
-void contact2server(char* pkt, int pkt_len, char* buf) {
-	int rv, err_no, sent = 0, msg_len = 0;
-	char *int_buf = (char *)malloc(sizeof(int));
-
-	// first send the pkt length
-	memcpy(int_buf, &pkt_len, sizeof(int));
-	rv = send(sockfd, int_buf, sizeof(int), 0);
-	if (rv < 0) err(1,0);	// in case something went wrong
-	fprintf(stderr, "pkt_len: %d	", pkt_len);
-
-	// send packet to server
-	fprintf(stderr, "client sending to server\n");
-	while (sent < pkt_len) {
-		rv = send(sockfd, pkt + sent, pkt_len - sent, 0);  // check the rv to make sure the completency
-		if (rv < 0) err(1,0);	// in case something went wrong
-		sent += rv;
-	}
-
-	// receive the pkt length
-	rv = recv(sockfd, int_buf, sizeof(int), 0);
-	if (rv<0) err(1,0);
-	memcpy(&msg_len, int_buf, sizeof(int));
-	fprintf(stderr, "msg_len: %d	", msg_len);
-
-	// get packet back
-	sent = 0;
-	buf = (char *)malloc(msg_len);
-	while ( (rv = recv(sockfd, buf + sent, msg_len, 0)) > 0) { // receive msg_len bytes into buf
-		if (rv < 0) err(1,0);	// in case something went wrong
-		sent += rv;
-		if (sent >= msg_len)
-			break;
-	}
-
-	buf[rv]=0;				// null terminate string to print
-	fprintf(stderr, "client receive messge from the server\n");
-	
-	// Set errno
-	memcpy(&err_no, buf, sizeof(int));
-	errno = err_no;
-}
-
 void send_pkt(char* pkt, int pkt_len) {
 	int rv, sent = 0;
 
@@ -209,7 +167,7 @@ int open(const char *pathname, int flags, ...) {
 	if (rv<0) err(1,0);
 	fprintf(stderr, "msg_len: %d	", msg_len);
 
-	rt_pkt = (char *)malloc(msg_len);
+	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
 
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
@@ -222,8 +180,8 @@ int close(int fildes) {
 		fprintf(stderr, "--[local close] called from %d\n", fildes);
 		return orig_close(fildes);
 	}
-	int rv, param_len, opcode;
-	char *pkt, *rt_pkt = NULL, *param;
+	int rv, opcode, param_len, msg_len;
+	char *pkt, *rt_pkt, *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "--[rpc close] called from %d\n", fd);
@@ -239,8 +197,16 @@ int close(int fildes) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
@@ -250,9 +216,9 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 		fprintf(stderr, "--[local write] called from %d\n", fildes);
 		return orig_write(fildes, buf, nbyte);
 	}
-	int param_len, opcode;
+	int opcode, param_len, msg_len;
 	ssize_t rv;
-	char *pkt, *rt_pkt = NULL, *param;
+	char *pkt, *rt_pkt, *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "--[rpc write] called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
@@ -270,8 +236,16 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
@@ -281,9 +255,9 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 		fprintf(stderr, "--[local read] called from %d\n", fildes);
 		return orig_read(fildes, buf, nbyte);
 	}
-	int param_len, opcode;
+	int opcode, param_len, msg_len;
 	ssize_t rv;
-	char *pkt, *rt_pkt = NULL, *param;
+	char *pkt, *rt_pkt, *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "--[rpc read] called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
@@ -300,8 +274,16 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), nbyte);
@@ -314,9 +296,9 @@ off_t lseek(int fildes, off_t offset, int whence) {
 		fprintf(stderr, "--[local] lseek called from %d\n", fildes);
 		return orig_lseek(fildes, offset, whence);
 	}
-	int param_len, opcode;
+	int opcode, param_len, msg_len;
 	off_t rv;
-	char *pkt, *rt_pkt = NULL, *param;
+	char *pkt, *rt_pkt, *param;
 	int fd = fd_client2server(fildes);
 
 	fprintf(stderr, "--[rpc lseek] called from %d\n", fd);
@@ -334,16 +316,24 @@ off_t lseek(int fildes, off_t offset, int whence) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
 
 int stat(const char *pathname, struct stat *buf) {
-	int param_len, opcode, rv, str_len = (int)strlen(pathname);
-	char *pkt, *rt_pkt = NULL, *param;
+	int rv, opcode, param_len, msg_len, str_len = (int)strlen(pathname);
+	char *pkt, *rt_pkt, *param;
 
 	fprintf(stderr, "--[stat] called for path %s\n", pathname);
 
@@ -359,8 +349,16 @@ int stat(const char *pathname, struct stat *buf) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), sizeof(struct stat));
@@ -368,8 +366,8 @@ int stat(const char *pathname, struct stat *buf) {
 }
 
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
-	int param_len, opcode, rv, str_len = (int)strlen(pathname);
-	char *pkt, *rt_pkt = NULL, *param;
+	int rv, opcode, param_len, msg_len, str_len = (int)strlen(pathname);
+	char *pkt, *rt_pkt, *param;
 
 	fprintf(stderr, "--[__xstat] called for path %s\n", pathname);
 
@@ -386,8 +384,16 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(stat_buf, rt_pkt + 2 * sizeof(int), sizeof(struct stat));
@@ -395,8 +401,8 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 }
 
 int unlink(const char *pathname) {
-	int param_len, opcode, rv, str_len = (int)strlen(pathname);
-	char *pkt, *rt_pkt = NULL, *param;
+	int rv, opcode, param_len, msg_len, str_len = (int)strlen(pathname);
+	char *pkt, *rt_pkt, *param;
 
 	fprintf(stderr, "--[unlink] called for path %s\n", pathname);
 
@@ -412,8 +418,16 @@ int unlink(const char *pathname) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	return rv;
 }
@@ -423,8 +437,8 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 		fprintf(stderr, "--[local] getdirentries called from %d\n", fd);
 		return orig_getdirentries(fd, buf, nbytes, basep);
 	}
-	int param_len, opcode, rv;
-	char *pkt, *rt_pkt = NULL, *param;
+	int rv, opcode, param_len, msg_len;
+	char *pkt, *rt_pkt, *param;
 	int fid = fd_client2server(fd);
 
 	fprintf(stderr, "--[rpc getdirentries] called from %d, nbytes: %d\n", fid, nbytes);
@@ -442,8 +456,16 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
+
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), nbytes);
@@ -451,8 +473,8 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 }
 
 struct dirtreenode* getdirtree(const char *pathname) {
-	int param_len, opcode, length, rt_length, str_len = (int)strlen(pathname);
-	char *pkt, *rt_pkt = NULL, *param;
+	int opcode, param_len, msg_len, length, rt_length, str_len = (int)strlen(pathname);
+	char *pkt, *rt_pkt, *param;
 	struct dirtreenode* rv = (struct dirtreenode *)malloc(sizeof(struct dirtreenode));
 
 	fprintf(stderr, "--[getdirtree] called for path %s\n", pathname);
@@ -469,7 +491,15 @@ struct dirtreenode* getdirtree(const char *pathname) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len + 1);
+	recv_msg(rt_pkt, msg_len);
 
 	memcpy(&rt_length, rt_pkt + sizeof(int), sizeof(int));
 	fprintf(stderr, "mylib: getdirtree called ended, rt_length: %d\n", rt_length);
