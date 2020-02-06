@@ -18,7 +18,6 @@
 #include <errno.h>
 #include <dirtree.h>
 
-#define MAXMSGLEN 8192
 #define MAX_PATHNAME 1024
 #define FD_OFFSET 2000
 
@@ -83,7 +82,7 @@ void connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15226; // For local test
+	//port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -101,18 +100,75 @@ void connect2server() {
 }
 
 void contact2server(char* pkt, int pkt_len, char* buf) {
-	int rv, err_no;
+	int rv, err_no, sent = 0, msg_len = 0;
+	char *int_buf = (char *)malloc(sizeof(int));
+
+	// first send the pkt length
+	memcpy(int_buf, &pkt_len, sizeof(int));
+	rv = send(sockfd, int_buf, sizeof(int), 0);
+	if (rv < 0) err(1,0);	// in case something went wrong
+	fprintf(stderr, "pkt_len: %d	", pkt_len);
 
 	// send packet to server
 	fprintf(stderr, "client sending to server\n");
-	rv = send(sockfd, pkt, pkt_len, 0);	// send the whole packet
+	while (sent < pkt_len) {
+		rv = send(sockfd, pkt + sent, pkt_len - sent, 0);  // check the rv to make sure the completency
+		if (rv < 0) err(1,0);	// in case something went wrong
+		sent += rv;
+	}
+
+	// receive the pkt length
+	rv = recv(sockfd, int_buf, sizeof(int), 0);
 	if (rv<0) err(1,0);
-	
+	memcpy(&msg_len, int_buf, sizeof(int));
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
 	// get packet back
-	rv = recv(sockfd, buf, MAXMSGLEN, 0);	// receive upto MAXMSGLEN bytes into buf
-	if (rv<0) err(1,0);			// in case something went wrong
+	sent = 0;
+	buf = (char *)malloc(msg_len);
+	while ( (rv = recv(sockfd, buf + sent, msg_len, 0)) > 0) { // receive msg_len bytes into buf
+		if (rv < 0) err(1,0);	// in case something went wrong
+		sent += rv;
+		if (sent >= msg_len)
+			break;
+	}
+
 	buf[rv]=0;				// null terminate string to print
-	fprintf(stderr, "client got messge (Not string format)\n");
+	fprintf(stderr, "client receive messge from the server\n");
+	
+	// Set errno
+	memcpy(&err_no, buf, sizeof(int));
+	errno = err_no;
+}
+
+void send_pkt(char* pkt, int pkt_len) {
+	int rv, sent = 0;
+
+	// first send the pkt length
+	rv = send(sockfd, &pkt_len, sizeof(int), 0);
+	if (rv < 0) err(1,0);	// in case something went wrong
+	fprintf(stderr, "pkt_len: %d	", pkt_len);
+
+	// send packet to server
+	fprintf(stderr, "client sending to server\n");
+	while (sent < pkt_len) {
+		rv = send(sockfd, pkt + sent, pkt_len - sent, 0);  // check the rv to make sure the completency
+		if (rv < 0) err(1,0);	// in case something went wrong
+		sent += rv;
+	}
+}
+
+void recv_msg(char* buf, int msg_len) {
+	int rv, err_no, sent = 0;
+	// get packet back
+	while ( (rv = recv(sockfd, buf + sent, msg_len, 0)) > 0) { // receive msg_len bytes into buf
+		if (rv < 0) err(1,0);	// in case something went wrong
+		sent += rv;
+		if (sent >= msg_len)
+			break;
+	}
+	buf[msg_len]=0;				// null terminate string to print
+	fprintf(stderr, "client receive messge from the server\n");
 	
 	// Set errno
 	memcpy(&err_no, buf, sizeof(int));
@@ -121,8 +177,8 @@ void contact2server(char* pkt, int pkt_len, char* buf) {
 
 // Replacement for the open function from libc.
 int open(const char *pathname, int flags, ...) {
-	int rv, param_len, opcode, str_len = (int)strlen(pathname);
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int rv, opcode, param_len, msg_len, str_len = (int)strlen(pathname);
+	char *pkt, *rt_pkt, *param;
 	mode_t m=0;
 	if (flags & O_CREAT) {
 		va_list a;
@@ -130,7 +186,7 @@ int open(const char *pathname, int flags, ...) {
 		m = va_arg(a, mode_t);
 		va_end(a);
 	}
-	fprintf(stderr, "mylib: open called for flags: %d, mode: %d, path: %s\n", flags, (int)m, pathname);
+	fprintf(stderr, "--[OPEN] called for flags: %d, mode: %d, path: %s\n", flags, (int)m, pathname);
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(mode_t) + str_len;
@@ -146,8 +202,16 @@ int open(const char *pathname, int flags, ...) {
 	memcpy(pkt, &opcode, sizeof(int));
 	memcpy(pkt + sizeof(int), param, param_len);
 
-	contact2server(pkt, sizeof(int) + param_len, rt_pkt);
-	
+	send_pkt(pkt, sizeof(int) + param_len);
+
+	// receive the pkt length
+	rv = recv(sockfd, (char *)&msg_len, sizeof(int), 0);
+	if (rv<0) err(1,0);
+	fprintf(stderr, "msg_len: %d	", msg_len);
+
+	rt_pkt = (char *)malloc(msg_len);
+	recv_msg(rt_pkt, msg_len);
+
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	rv = fd_server2client(rv);
 	return rv;
@@ -155,14 +219,14 @@ int open(const char *pathname, int flags, ...) {
 
 int close(int fildes) {
 	if (fildes < FD_OFFSET) {
-		fprintf(stderr, "mylib: local close called from %d\n", fildes);
+		fprintf(stderr, "--[local close] called from %d\n", fildes);
 		return orig_close(fildes);
 	}
 	int rv, param_len, opcode;
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: rpc close called from %d\n", fd);
+	fprintf(stderr, "--[rpc close] called from %d\n", fd);
 
 	// param packing
 	param_len = sizeof(int);
@@ -183,15 +247,15 @@ int close(int fildes) {
 
 ssize_t write(int fildes, const void *buf, size_t nbyte) {
 	if (fildes < FD_OFFSET) {
-		fprintf(stderr, "mylib: local write called from %d\n", fildes);
+		fprintf(stderr, "--[local write] called from %d\n", fildes);
 		return orig_write(fildes, buf, nbyte);
 	}
 	int param_len, opcode;
 	ssize_t rv;
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: rpc write called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
+	fprintf(stderr, "--[rpc write] called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t) + nbyte;
@@ -214,15 +278,15 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 
 ssize_t read(int fildes, void *buf, size_t nbyte) {
 	if (fildes < FD_OFFSET) {
-		fprintf(stderr, "mylib: local read called from %d\n", fildes);
+		fprintf(stderr, "--[local read] called from %d\n", fildes);
 		return orig_read(fildes, buf, nbyte);
 	}
 	int param_len, opcode;
 	ssize_t rv;
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: rpc read called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
+	fprintf(stderr, "--[rpc read] called from %d, nbyte: %d, buf: %s\n", fd, (int)nbyte, (char *)buf);
 
 	// param packing
 	param_len = sizeof(int) + sizeof(size_t);
@@ -247,15 +311,15 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 
 off_t lseek(int fildes, off_t offset, int whence) {
 	if (fildes < FD_OFFSET) {
-		fprintf(stderr, "mylib: local lseek called from %d\n", fildes);
+		fprintf(stderr, "--[local] lseek called from %d\n", fildes);
 		return orig_lseek(fildes, offset, whence);
 	}
 	int param_len, opcode;
 	off_t rv;
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 	int fd = fd_client2server(fildes);
 
-	fprintf(stderr, "mylib: rpc lseek called from %d\n", fd);
+	fprintf(stderr, "--[rpc lseek] called from %d\n", fd);
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(off_t);
@@ -279,9 +343,9 @@ off_t lseek(int fildes, off_t offset, int whence) {
 
 int stat(const char *pathname, struct stat *buf) {
 	int param_len, opcode, rv, str_len = (int)strlen(pathname);
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 
-	fprintf(stderr, "mylib: stat called for path %s\n", pathname);
+	fprintf(stderr, "--[stat] called for path %s\n", pathname);
 
 	// param packing
 	param_len = sizeof(int) + str_len;
@@ -305,9 +369,9 @@ int stat(const char *pathname, struct stat *buf) {
 
 int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	int param_len, opcode, rv, str_len = (int)strlen(pathname);
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 
-	fprintf(stderr, "mylib: __xstat called for path %s\n", pathname);
+	fprintf(stderr, "--[__xstat] called for path %s\n", pathname);
 
 	// param packing
 	param_len = 2 * sizeof(int) + str_len;
@@ -332,9 +396,9 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 
 int unlink(const char *pathname) {
 	int param_len, opcode, rv, str_len = (int)strlen(pathname);
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 
-	fprintf(stderr, "mylib: unlink called for path %s\n", pathname);
+	fprintf(stderr, "--[unlink] called for path %s\n", pathname);
 
 	// param packing
 	param_len = sizeof(int) + str_len;
@@ -356,15 +420,14 @@ int unlink(const char *pathname) {
 
 int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	if (fd < FD_OFFSET) {
-		fprintf(stderr, "mylib: local getdirentries called from %d\n", fd);
+		fprintf(stderr, "--[local] getdirentries called from %d\n", fd);
 		return orig_getdirentries(fd, buf, nbytes, basep);
 	}
-	int param_len, opcode;
-	int rv;
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	int param_len, opcode, rv;
+	char *pkt, *rt_pkt = NULL, *param;
 	int fid = fd_client2server(fd);
 
-	fprintf(stderr, "mylib: rpc getdirentries called from %d, nbytes: %d\n", fid, nbytes);
+	fprintf(stderr, "--[rpc getdirentries] called from %d, nbytes: %d\n", fid, nbytes);
 
 	// param packing
 	param_len = 2 * sizeof(int) + sizeof(long);
@@ -389,10 +452,10 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 
 struct dirtreenode* getdirtree(const char *pathname) {
 	int param_len, opcode, length, rt_length, str_len = (int)strlen(pathname);
-	char *pkt, rt_pkt[MAXMSGLEN+1], *param;
+	char *pkt, *rt_pkt = NULL, *param;
 	struct dirtreenode* rv = (struct dirtreenode *)malloc(sizeof(struct dirtreenode));
 
-	fprintf(stderr, "mylib: getdirtree called for path %s\n", pathname);
+	fprintf(stderr, "--[getdirtree] called for path %s\n", pathname);
 
 	// param packing
 	param_len = sizeof(int) + str_len;
@@ -417,7 +480,7 @@ struct dirtreenode* getdirtree(const char *pathname) {
 
 // this func actually doesn't need to be an RPC
 void freedirtree(struct dirtreenode* dt) {
-	fprintf(stderr, "mylib: freedirtree called\n");
+	fprintf(stderr, "--[freedirtree] called\n");
 	// just free it locally
 	orig_freedirtree(dt); // may need to write a free() by yourself
 }

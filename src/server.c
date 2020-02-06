@@ -13,8 +13,7 @@
 #include <errno.h>
 #include <dirtree.h>
 
-#define MAXMSGLEN 8192
-#define MAX_PATHNAME 1024  // currently only used in tree (un)packing
+#define MAX_PATHNAME 1024  // currently only left in tree (un)packing
 #define FD_OFFSET 2000
 
 int pack_tree(struct dirtreenode *sub, char *sub_send) {
@@ -53,9 +52,10 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "flags: %d, m: %d, pathname: %s\n", flags, (int)m, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
+			*msg_len = 2 * sizeof(int);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = 2 * sizeof(int);
 			break;
 		}
 		// close
@@ -68,9 +68,10 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d\n", fildes);
 			fprintf(stderr, "rv: %d\n", rv);
 
+			*msg_len = 2 * sizeof(int);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = 2 * sizeof(int);
 			break;
 		}
 		// write
@@ -90,9 +91,10 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, w_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
+			*msg_len = sizeof(int) + sizeof(size_t);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = sizeof(int) + sizeof(size_t);
 			break;
 		}
 		// read
@@ -111,10 +113,11 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, nbyte: %d, buf: %s\n", fildes, (int)nbyte, r_buf);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
+			*msg_len = sizeof(int) + sizeof(size_t) + nbyte;
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), r_buf, nbyte);
-			*msg_len = sizeof(int) + sizeof(size_t) + nbyte;
 			break;
 		}
 		// lseek
@@ -132,9 +135,10 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, offset: %d, whence: %d\n", fildes, (int)offset, whence);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
+			*msg_len = sizeof(int) + sizeof(off_t);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = sizeof(int) + sizeof(off_t);
 			break;
 		}
 		// stat
@@ -151,10 +155,11 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
+			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), s_buf, sizeof(struct stat));
-			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
 			break;
 		}
 		// __xstat
@@ -173,10 +178,11 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "ver: %d, pathname: %s\n", ver, pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
+			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), s_buf, sizeof(struct stat));
-			*msg_len = 2 * sizeof(int) + sizeof(struct stat);
 			break;
 		}
 		// unlink
@@ -193,9 +199,10 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "pathname: %s\n", pathname);
 			fprintf(stderr, "rv: %d\n", rv);
 
+			*msg_len = 2 * sizeof(int);
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
-			*msg_len = 2 * sizeof(int);
 			break;
 		}
 		// getdirentries
@@ -215,10 +222,11 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "fildes: %d, nbyte: %d\n", fd, nbytes);
 			fprintf(stderr, "rv: %d\n", (int)rv);
 
+			*msg_len = 2 * sizeof(int) + nbytes;
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rv, sizeof(int));
 			memcpy(rt_msg + 2 * sizeof(int), g_buf, nbytes);
-			*msg_len = 2 * sizeof(int) + nbytes;
 			break;
 		}
 		// getdirtree
@@ -237,12 +245,13 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 			fprintf(stderr, "--------------\n");
 			fprintf(stderr, "length: %d, subdirs: %d, pathname: %s\n", rt_length, rv->num_subdirs, pathname);
 
+			*msg_len = 2 * sizeof(int) + rt_length;
+			rt_msg = (char *)malloc(*msg_len);
 			memcpy(rt_msg, &errno, sizeof(int));
 			memcpy(rt_msg + sizeof(int), &rt_length, sizeof(int));
 			// TODO: So weird bug here. send rv_send will make previous rt_length become 0 ...
 			// Seems to be overlap here for the two pointers
 			memcpy(rt_msg + 2 * sizeof(int), rv_send, rt_length);
-			*msg_len = 2 * sizeof(int) + rt_length;
 
 			// no longer need the tree at server, free it at once
 			freedirtree(rv);
@@ -252,18 +261,20 @@ void execute_request(char *buf, char *rt_msg, int *msg_len, int sessfd) {
 		default:
 			fprintf(stderr, "Default\n");
 			char *msg = "Default msg from server";
-			memcpy(rt_msg, msg, strlen(msg));
+
 			*msg_len = strlen(msg);
+			rt_msg = (char *)malloc(*msg_len);
+			memcpy(rt_msg, msg, strlen(msg));
 			break;
 	}
 }
 
 int main(int argc, char**argv) {
-	char *msg;
-	char buf[MAXMSGLEN+1];
+	char *msg = NULL;
+	char *buf, *int_buf = (char *)malloc(sizeof(int));
 	char *serverport;
 	unsigned short port;
-	int sockfd, sessfd, rv, send_rv, msg_len, pid;
+	int sockfd, sessfd, rv, msg_len, pid, sent, pkt_len = 0;
 	struct sockaddr_in srv, cli;
 	socklen_t sa_size;
 
@@ -271,7 +282,7 @@ int main(int argc, char**argv) {
 	serverport = getenv("serverport15440");
 	if (serverport) port = (unsigned short)atoi(serverport);
 	else port=15440;
-	port = 15226; // For local test
+	//port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -306,18 +317,41 @@ int main(int argc, char**argv) {
 			close(sockfd);  // child does not need this
 
 			// get messages and send replies to this client, until it goes away
-			while ( (rv=recv(sessfd, buf, MAXMSGLEN, 0)) > 0) { // receive up to MAXMSGLEN bytes into buf
-				buf[rv]=0;		// null terminate string to print
-				fprintf(stderr, "received msg from server %d: ", pid);
+			while ( (rv=recv(sessfd, int_buf, sizeof(int), 0)) > 0) {
+				memcpy(&pkt_len, int_buf, sizeof(int));
+				fprintf(stderr, "pkt_len: %d	", pkt_len);
+
+				sent = 0;
+				buf = (char *)malloc(pkt_len);
+				while ( (rv = recv(sessfd, buf + sent, pkt_len, 0)) > 0) { // receive pkt_len bytes into buf
+					if (rv < 0) err(1,0);	// in case something went wrong
+					sent += rv;
+					if (sent >= pkt_len)
+						break;
+				}
+
+				buf[pkt_len]=0;		// null terminate string to print
+				fprintf(stderr, "server %d received msg: ", pid);
 				printf("%s\n", buf);  // print the received messege
 				
-				msg = malloc(MAXMSGLEN);
 				execute_request(buf, msg, &msg_len, sessfd);
 
+				// send the msg length
+				memcpy(int_buf, &msg_len, sizeof(int));
+				rv = send(sessfd, int_buf, sizeof(int), 0);
+				if (rv < 0) err(1,0);	// in case something went wrong
+				fprintf(stderr, "msg_len: %d	", msg_len);
+
 				// send reply
-				fprintf(stderr, "server replying to client from server %d\n", pid);
-				send_rv = send(sessfd, msg, msg_len, 0);
-				if (send_rv<0) err(1,0);
+				fprintf(stderr, "server %d reply to client\n", pid);
+				sent = 0;
+				while (sent < msg_len) {
+					rv = send(sessfd, msg + sent, msg_len - sent, 0);  // always check the rv to make sure the completency
+					if (rv < 0) err(1,0);	// in case something went wrong
+					sent += rv;
+				}
+				//send_rv = send(sessfd, msg, msg_len, 0);
+				//if (send_rv<0) err(1,0);
 			}
 
 			// if received bytes < 0, either client closed connection, or error
