@@ -83,7 +83,7 @@ void connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	port = 15226; // For local test
+	//port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
