@@ -83,7 +83,7 @@ void connect2server() {
 		serverport = "15440";
 	}
 	port = (unsigned short)atoi(serverport);
-	//port = 15226; // For local test
+	port = 15226; // For local test
 	
 	// Create socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);	// TCP/IP socket
@@ -121,7 +121,7 @@ void send_pkt(char* pkt, int pkt_len) {
 }
 
 void recv_msg(char* buf, int msg_len) {
-	int rv, err_no, sent = 0;
+	int rv, sent = 0;
 	// get packet back
 	while ( (rv = recv(sockfd, buf + sent, msg_len, MSG_WAITALL)) > 0) { // receive msg_len bytes into buf
 		if (rv < 0) err(1,0);
@@ -131,10 +131,6 @@ void recv_msg(char* buf, int msg_len) {
 	}
 	buf[msg_len]=0;				// null terminate string to print
 	fprintf(stderr, "client receive messge from the server\n\n");
-	
-	// Set errno
-	memcpy(&err_no, buf, sizeof(int));
-	errno = err_no;
 }
 
 // Replacement for the open function from libc.
@@ -175,8 +171,13 @@ int open(const char *pathname, int flags, ...) {
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
-
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+	
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
+
 	rv = fd_server2client(rv);
 	return rv;
 }
@@ -214,8 +215,13 @@ int close(int fildes) {
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
-
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
+
 	return rv;
 }
 
@@ -255,8 +261,13 @@ ssize_t write(int fildes, const void *buf, size_t nbyte) {
 
 	rt_pkt = (char *)malloc(msg_len + 1);
 	recv_msg(rt_pkt, msg_len);
-
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
+
 	return rv;
 }
 
@@ -299,6 +310,12 @@ ssize_t read(int fildes, void *buf, size_t nbyte) {
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), nbyte);
+	
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
+
 	fprintf(stderr, "mylib: read called ended, buf: %s\n", (char *)buf);
 	return rv;
 }
@@ -342,6 +359,10 @@ off_t lseek(int fildes, off_t offset, int whence) {
 
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
 	return rv;
 }
 
@@ -378,6 +399,11 @@ int stat(const char *pathname, struct stat *buf) {
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), sizeof(struct stat));
+
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
 	return rv;
 }
 
@@ -415,6 +441,11 @@ int __xstat(int ver, const char * pathname, struct stat * stat_buf) {
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(stat_buf, rt_pkt + 2 * sizeof(int), sizeof(struct stat));
+	
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
 	return rv;
 }
 
@@ -449,6 +480,10 @@ int unlink(const char *pathname) {
 	recv_msg(rt_pkt, msg_len);
 
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
 	return rv;
 }
 
@@ -491,6 +526,11 @@ int getdirentries(int fd, char *buf, int nbytes, long *basep) {
 	// pkt unpacking
 	memcpy(&rv, rt_pkt + sizeof(int), sizeof(int));
 	memcpy(buf, rt_pkt + 2 * sizeof(int), nbytes);
+	if (rv == -1) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
+
 	return rv;
 }
 
@@ -529,6 +569,11 @@ struct dirtreenode* getdirtree(const char *pathname) {
 	fprintf(stderr, "mylib: getdirtree called ended, rt_length: %d\n", rt_length);
 	length = unpack_tree(rt_pkt + 2 * sizeof(int), rv);
 	fprintf(stderr, "length: %d\n", length);
+	
+	if (rv == NULL) {
+		// Set errno
+		memcpy(&errno, rt_pkt, sizeof(int));
+	}
 	return rv;
 }
 
